@@ -1,0 +1,113 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}} Paste a JSON document — from a DevTools Network response, a <code>.json</code> config file, or hand-edited data — validate it instantly, then beautify it for review or minify it for production.</p>
+</section>
+<div class="tool-panel" data-slug="json-format" data-client-side>
+  <div class="panel-col">
+    <label for="tool-input">Input</label>
+    <textarea id="tool-input" placeholder="Paste or type JSON here…"></textarea>
+  </div>
+  <div class="panel-col">
+    <label for="tool-output">Output</label>
+    <textarea id="tool-output" readonly placeholder="Beautified or minified JSON appears here…"></textarea>
+  </div>
+  <div class="panel-actions">
+    <button class="pill-btn" type="button" id="validate-btn">Validate JSON</button>
+    <button class="pill-btn" type="button" id="beautify-btn">Beautify</button>
+    <button class="pill-btn" type="button" id="minify-btn">Minify</button>
+    <button class="pill-btn" type="button" id="copy-btn">Copy Output</button>
+    <button class="pill-btn" type="button" id="clear-btn">Clear</button>
+  </div>
+  <p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Runs entirely in your browser via the native <code>JSON.parse()</code> — the same parsing engine Node.js and browsers use — so results and error messages match real-world behavior exactly. Nothing is sent to the server; open your browser's network tab and see for yourself. For CLI/REST scripting, see the <a href="/docs">docs</a>.</p>
+  <p class="success-banner" id="tool-success" hidden></p>
+  <p class="error-banner" id="tool-error" hidden></p>
+</div>
+{{end}}
+
+{{define "extra-scripts"}}
+<script>
+  (function () {
+    var input = document.getElementById('tool-input');
+    var output = document.getElementById('tool-output');
+    var errorBanner = document.getElementById('tool-error');
+    var successBanner = document.getElementById('tool-success');
+
+    function showError(msg) {
+      successBanner.hidden = true;
+      successBanner.textContent = '';
+      errorBanner.textContent = msg;
+      errorBanner.hidden = false;
+    }
+    function showSuccess(msg) {
+      errorBanner.hidden = true;
+      errorBanner.textContent = '';
+      successBanner.textContent = msg;
+      successBanner.hidden = false;
+    }
+    function clearBanners() {
+      errorBanner.hidden = true;
+      errorBanner.textContent = '';
+      successBanner.hidden = true;
+      successBanner.textContent = '';
+    }
+
+    // Parses the input, or reports why it failed. Returns undefined (and
+    // has already shown the error banner) on any failure, so callers can
+    // just check for that instead of duplicating the empty/invalid checks.
+    function parseInput() {
+      if (!input.value.trim()) {
+        showError('Input is empty. Paste JSON to validate.');
+        return undefined;
+      }
+      try {
+        return { value: JSON.parse(input.value) };
+      } catch (e) {
+        showError(e.message);
+        return undefined;
+      }
+    }
+
+    function validate() {
+      clearBanners();
+      var result = parseInput();
+      if (!result) return;
+      showSuccess('Valid JSON.');
+    }
+
+    function beautify() {
+      clearBanners();
+      var result = parseInput();
+      if (!result) { output.value = ''; return; }
+      output.value = JSON.stringify(result.value, null, 2);
+    }
+
+    function minify() {
+      clearBanners();
+      var result = parseInput();
+      if (!result) { output.value = ''; return; }
+      output.value = JSON.stringify(result.value);
+    }
+
+    document.getElementById('validate-btn').addEventListener('click', validate);
+    document.getElementById('beautify-btn').addEventListener('click', beautify);
+    document.getElementById('minify-btn').addEventListener('click', minify);
+    document.getElementById('copy-btn').addEventListener('click', function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(output.value);
+    });
+    document.getElementById('clear-btn').addEventListener('click', function () {
+      input.value = '';
+      output.value = '';
+      clearBanners();
+    });
+
+    // Ctrl/Cmd+Enter in the textarea beautifies, for keyboard workflows.
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        beautify();
+      }
+    });
+  })();
+</script>
+{{end}}

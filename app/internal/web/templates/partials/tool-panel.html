@@ -1,0 +1,19 @@
+{{define "tool-panel"}}
+<div class="tool-panel" data-slug="{{.Tool.Slug}}"{{if .Tool.ClientSide}} data-client-side{{end}}>
+  <div class="panel-col">
+    <label for="tool-input">Input</label>
+    <textarea id="tool-input" placeholder="Paste or type here…"></textarea>
+  </div>
+  <div class="panel-col">
+    <label for="tool-output">Output</label>
+    <textarea id="tool-output" readonly></textarea>
+  </div>
+  {{block "tool-options" .}}{{end}}
+  <div class="panel-actions">
+    <button class="pill-btn" type="button" data-action="copy">Copy</button>
+    <button class="pill-btn" type="button" data-action="reset">Reset</button>
+    {{block "tool-actions" .}}{{end}}
+  </div>
+  <p class="error-banner" id="tool-error" hidden></p>
+</div>
+{{end}}

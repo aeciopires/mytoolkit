@@ -1,0 +1,7 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}} Powered by <a href="https://github.com/kubernetes-sigs/yaml" target="_blank" rel="noopener">sigs.k8s.io/yaml</a>, the same library Kubernetes uses to render its typed API objects as YAML.</p>
+</section>
+{{template "tool-panel" .}}
+{{end}}

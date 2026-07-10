@@ -1,0 +1,19 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}} Powered by <a href="https://github.com/kubernetes-sigs/yaml" target="_blank" rel="noopener">sigs.k8s.io/yaml</a>, the same library Kubernetes uses to accept YAML manifests as JSON.</p>
+</section>
+{{template "tool-panel" .}}
+{{end}}
+
+{{define "tool-options"}}
+<div class="options-row">
+  <label>Indent
+    <select name="indent" data-option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+    </select>
+  </label>
+</div>
+<p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Duplicate mapping keys are rejected (the YAML spec forbids them). Only the first document in a multi-document (<code>---</code>-separated) stream is converted. Unquoted <code>y</code>/<code>n</code>/<code>yes</code>/<code>no</code>/<code>on</code>/<code>off</code> in the source YAML resolve to JSON booleans, per YAML 1.1 — quote them in the source if you want strings.</p>
+{{end}}

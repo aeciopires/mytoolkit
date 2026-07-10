@@ -1,0 +1,25 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}}</p>
+</section>
+{{template "tool-panel" .}}
+{{end}}
+
+{{define "tool-options"}}
+<div class="options-row">
+  <label>Style
+    <select name="style" data-option>
+      <option value="block">Block (indented)</option>
+      <option value="flow">Flow (compact)</option>
+    </select>
+  </label>
+  <label>Indent
+    <select name="indent" data-option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+    </select>
+  </label>
+</div>
+<p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Multi-document streams (<code>---</code>-separated) are fully supported — every document is reformatted. "Flow" style collapses mappings/sequences to compact <code>{}</code>/<code>[]</code> notation (indent doesn't apply); "Block" keeps the usual indented layout.</p>
+{{end}}

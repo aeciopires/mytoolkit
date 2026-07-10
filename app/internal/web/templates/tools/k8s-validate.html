@@ -1,0 +1,11 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}} Powered by <a href="https://github.com/kubernetes-sigs/yaml" target="_blank" rel="noopener">sigs.k8s.io/yaml</a>, the same library the Kubernetes API server, kubectl, and client-go use to accept YAML manifests as JSON.</p>
+</section>
+{{template "tool-panel" .}}
+{{end}}
+
+{{define "tool-options"}}
+<p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Checks that every document in the stream is well-formed YAML with a non-empty <code>apiVersion</code> and <code>kind</code>, and (if present) an object-shaped <code>metadata</code> — the minimum every Kubernetes API object must have. This does <strong>not</strong> validate against a specific resource's full schema (e.g. Deployment, Service, a CRD) — for that, use <code>kubectl apply --dry-run=server</code> or <code>kubeconform</code> against a real cluster/schema set.</p>
+{{end}}

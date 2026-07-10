@@ -1,0 +1,525 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+a { color: inherit; }
+
+/* --- Top app bar (M3 navigation-bar convention, adapted for a top bar) --- */
+.topnav {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Centers the bar's content to the same column as .content below it, so
+   the header lines up with the page on wide viewports instead of pinning
+   the hamburger/brand to the far-left edge and the theme toggle to the
+   far-right edge. Purely a flex row within the sticky bar (no fixed/
+   absolute positioning), so it can never overlap page content — the nav
+   drawer's own overlap-avoidance (position: fixed + scrim) is unaffected. */
+.topnav-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.back-home-btn {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--shape-full);
+  white-space: nowrap;
+}
+.back-home-btn:hover, .back-home-btn:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) calc(var(--state-hover) * 100%), transparent);
+}
+
+/* --- Icon buttons: https://m3.material.io/components/icon-buttons/overview --- */
+.icon-btn {
+  width: var(--space-10);
+  height: var(--space-10);
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--color-text) calc(var(--state-hover) * 100%), transparent);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-text) calc(var(--state-focus) * 100%), transparent);
+}
+.icon-btn:active {
+  background: color-mix(in srgb, var(--color-text) calc(var(--state-press) * 100%), transparent);
+}
+
+/* --- Search bar: https://m3.material.io/components/search/overview --- */
+.search-field {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 22rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+}
+.search-field:focus-within {
+  border-color: var(--color-primary);
+}
+.search-icon { font-size: 1rem; flex-shrink: 0; }
+.search-field input[type="search"] {
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  width: 100%;
+  min-width: 0;
+}
+.search-field input[type="search"]::placeholder { color: var(--color-text-muted); }
+
+.search-results {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--color-bg-alt);
+  border-radius: var(--shape-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 20;
+}
+.search-results li { margin: 0; }
+
+/* --- Navigation drawer: https://m3.material.io/components/navigation-drawer/overview --- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--color-scrim);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 29;
+}
+.scrim.open { opacity: 1; }
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300px;
+  max-width: 85vw;
+  background: var(--color-bg-alt);
+  border-right: 1px solid var(--color-border);
+  transform: translateX(-100%);
+  transition: transform 0.2s ease;
+  z-index: 30;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-3) var(--space-6);
+}
+.nav-drawer.open { transform: translateX(0); }
+
+.nav-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.nav-drawer-title { font-weight: 700; font-size: 1.1rem; }
+.nav-drawer-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-3) var(--space-3);
+}
+
+/* --- Lists: https://m3.material.io/components/lists/overview --- */
+.nav-list { list-style: none; margin: 0; padding: 0; }
+.nav-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 3.5rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--shape-full);
+  text-decoration: none;
+  color: var(--color-text);
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.nav-list-item:hover {
+  background: color-mix(in srgb, var(--color-text) calc(var(--state-hover) * 100%), transparent);
+}
+.nav-list-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+.nav-list-item.active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+.nav-list-icon { font-size: 1.25rem; flex-shrink: 0; }
+
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  min-height: calc(100vh - 200px);
+}
+
+.hero-card {
+  background: var(--color-surface);
+  border-radius: var(--shape-lg);
+  padding: var(--space-8);
+  margin-bottom: var(--space-6);
+}
+.hero-card h1 { margin-top: 0; font-size: 2.5rem; }
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.tool-card {
+  display: block;
+  background: var(--color-surface);
+  border-radius: var(--shape-md);
+  padding: var(--space-5);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+.tool-card:hover {
+  transform: translateY(-2px);
+  background: var(--color-surface-high);
+}
+.tool-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.tool-emoji { font-size: 1.75rem; }
+.tool-card h2 { font-size: 1.1rem; margin: var(--space-2) 0; }
+.tool-card p { color: var(--color-text-muted); font-size: 0.9rem; margin: 0; }
+
+.tool-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+@media (max-width: 720px) {
+  .tool-panel { grid-template-columns: 1fr; }
+  .search-field { display: none; }
+  .brand span.brand-text { display: none; }
+}
+
+.panel-col { display: flex; flex-direction: column; gap: var(--space-2); }
+.panel-col label { font-weight: 600; font-size: 0.9rem; }
+
+/* --- Text fields: https://m3.material.io/components/text-fields/overview --- */
+.panel-col textarea,
+input[type="text"],
+input[type="number"] {
+  min-height: 240px;
+  border-radius: var(--shape-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: var(--space-4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+input[type="text"], input[type="number"] {
+  min-height: auto;
+  font-family: inherit;
+  padding: var(--space-2) var(--space-3);
+}
+.panel-col textarea:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+select {
+  border-radius: var(--shape-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+}
+
+.panel-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* --- Buttons: https://m3.material.io/components/all-buttons --- */
+.pill-btn {
+  position: relative;
+  border: none;
+  border-radius: var(--shape-full);
+  padding: var(--space-3) var(--space-6);
+  min-height: 40px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.pill-btn:hover {
+  background: color-mix(in srgb, var(--color-on-primary-container) calc(var(--state-hover) * 100%), var(--color-primary-container));
+}
+.pill-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.pill-btn:active {
+  background: color-mix(in srgb, var(--color-on-primary-container) calc(var(--state-press) * 100%), var(--color-primary-container));
+}
+.pill-btn.active { outline: 2px solid var(--color-primary); }
+
+.options-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.options-row label { display: flex; align-items: center; gap: var(--space-2); font-size: 0.9rem; }
+
+/* --- Checkboxes: https://m3.material.io/components/checkbox/overview --- */
+input[type="checkbox"].m3-checkbox,
+.options-row input[type="checkbox"],
+.panel-actions input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-outline);
+  border-radius: 2px;
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  background: transparent;
+}
+.options-row input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.options-row input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--color-on-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.options-row input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --- Switch (for single on/off toggles, e.g. Decode): https://m3.material.io/components/switch/overview --- */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.switch input[type="checkbox"] {
+  appearance: none;
+  width: 42px;
+  height: 24px;
+  border-radius: var(--shape-full);
+  border: 2px solid var(--color-outline);
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.switch input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-outline);
+  transition: transform 0.15s ease, background-color 0.15s ease, width 0.15s ease, height 0.15s ease;
+}
+.switch input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.switch input[type="checkbox"]:checked::after {
+  background: var(--color-on-primary);
+  transform: translateX(18px);
+  width: 20px;
+  height: 20px;
+  top: 0px;
+  left: 0px;
+}
+.switch input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --- Radio buttons: https://m3.material.io/components/radio-button/overview --- */
+input[type="radio"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-outline);
+  border-radius: 50%;
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+input[type="radio"]:checked { border-color: var(--color-primary); }
+input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.error-banner {
+  grid-column: 1 / -1;
+  background: #ffdad6;
+  color: #410002;
+  border-radius: var(--shape-md);
+  padding: var(--space-3) var(--space-4);
+}
+:root[data-theme="dark"] .error-banner { background: #93000a; color: #ffdad6; }
+
+.success-banner {
+  grid-column: 1 / -1;
+  background: #c4eed0;
+  color: #0b3818;
+  border-radius: var(--shape-md);
+  padding: var(--space-3) var(--space-4);
+}
+:root[data-theme="dark"] .success-banner { background: #0f5223; color: #c4eed0; }
+
+/* --- JSON Tree Viewer --- */
+.json-tree-output {
+  min-height: 240px;
+  border-radius: var(--shape-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: var(--space-4);
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.json-tree-output:empty::before {
+  content: "Click \"Generate Tree View\" to see your JSON here.";
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.json-node > summary {
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--shape-xs);
+  padding: 2px var(--space-1);
+}
+.json-node > summary::-webkit-details-marker { display: none; }
+.json-node > summary:hover {
+  background: color-mix(in srgb, var(--color-text) calc(var(--state-hover) * 100%), transparent);
+}
+.json-node > summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.json-toggle-icon {
+  display: inline-block;
+  width: 1em;
+  color: var(--color-text-muted);
+}
+.json-toggle-icon::before { content: "▶"; }
+details[open] > summary > .json-toggle-icon::before { content: "▼"; }
+
+.json-key { color: var(--json-key); font-weight: 600; }
+.json-type-summary { color: var(--color-text-muted); }
+.json-value.json-string { color: var(--json-string); }
+.json-value.json-number { color: var(--json-number); }
+.json-value.json-bool { color: var(--json-bool); }
+.json-value.json-null { color: var(--json-null); }
+
+.json-children {
+  margin-left: var(--space-4);
+  padding-left: var(--space-3);
+  border-left: 1px dashed var(--color-border);
+}
+.json-leaf {
+  padding: 2px var(--space-1) 2px calc(1em + var(--space-1));
+}
+
+/* --- Footer --- */
+.site-footer {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--color-border);
+}
+.site-footer a { color: var(--color-primary); text-decoration: none; font-weight: 600; }
+.site-footer a:hover { text-decoration: underline; }

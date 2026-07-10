@@ -1,0 +1,73 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · MyToolkit</title>
+  <script>
+    (function () {
+      var forced = new URLSearchParams(window.location.search).get('theme');
+      var t = forced === 'dark' || forced === 'light' ? forced : localStorage.getItem('theme');
+      if (!t) { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="icon" href="/static/icons/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="scrim" id="nav-scrim" hidden></div>
+
+  <nav class="nav-drawer" id="nav-drawer" aria-label="Tools menu" aria-hidden="true">
+    <div class="nav-drawer-header">
+      <span class="nav-drawer-title">MyToolkit</span>
+      <button class="icon-btn" id="nav-drawer-close" aria-label="Close menu">✕</button>
+    </div>
+    <ul class="nav-list">
+      <li><a class="nav-list-item{{if not .ActiveSlug}} active{{end}}" href="/">
+        <span class="nav-list-icon" aria-hidden="true">🏠</span><span>Home</span>
+      </a></li>
+    </ul>
+    <div class="nav-drawer-divider"></div>
+    <ul class="nav-list">
+      {{$active := .ActiveSlug}}
+      {{range .Tools}}
+      <li><a class="nav-list-item{{if eq .Slug $active}} active{{end}}" href="/tools/{{.Slug}}">
+        <span class="nav-list-icon" aria-hidden="true">{{.Emoji}}</span><span>{{.Name}}</span>
+      </a></li>
+      {{end}}
+    </ul>
+  </nav>
+
+  <header class="topnav">
+    <div class="topnav-inner">
+      <button class="icon-btn" id="nav-drawer-toggle" aria-label="Open tools menu" aria-expanded="false" aria-controls="nav-drawer">☰</button>
+      <a class="brand" href="/">🧰 MyToolkit</a>
+      {{if .ActiveSlug}}<a class="back-home-btn" href="/">← Back to Home</a>{{end}}
+      <div class="search-field" role="search">
+        <span class="search-icon" aria-hidden="true">🔎</span>
+        <input type="search" id="tool-search" placeholder="Search tools…" aria-label="Search tools" autocomplete="off">
+        <ul class="search-results" id="search-results" hidden></ul>
+      </div>
+      <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light theme">🌓</button>
+    </div>
+  </header>
+
+  <main class="content">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer">
+    <p>Developed by Aecio Pires. More info: <a href="https://github.com/aeciopires" target="_blank" rel="noopener noreferrer">github.com/aeciopires</a> and <a href="https://linktr.ee/aeciopires" target="_blank" rel="noopener noreferrer">linktr.ee/aeciopires</a></p>
+  </footer>
+
+  <script>window.MYTOOLKIT_TOOLS = {{.ToolsJSON}};</script>
+  <script src="/static/js/theme-toggle.js"></script>
+  <script src="/static/js/nav.js"></script>
+  <script src="/static/js/tool-common.js"></script>
+  {{block "extra-scripts" .}}{{end}}
+</body>
+</html>
+{{end}}

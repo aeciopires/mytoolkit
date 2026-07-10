@@ -1,0 +1,52 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}}</p>
+</section>
+<div class="tool-panel" data-slug="jwt">
+  <div class="panel-col">
+    <label for="tool-input">Token (decode) / Claims JSON (encode)</label>
+    <textarea id="tool-input" placeholder="Paste a JWT to decode, or claims JSON to encode…"></textarea>
+  </div>
+  <div class="panel-col">
+    <label for="tool-output">Result</label>
+    <textarea id="tool-output" readonly></textarea>
+  </div>
+  <div class="options-row">
+    <label>Mode
+      <select name="mode" data-option>
+        <option value="decode">Decode</option>
+        <option value="encode">Encode</option>
+      </select>
+    </label>
+    <label>Algorithm
+      <select name="algorithm" data-option>
+        <option value="HS256">HS256</option>
+        <option value="HS384">HS384</option>
+        <option value="HS512">HS512</option>
+        <option value="RS256">RS256</option>
+        <option value="RS384">RS384</option>
+        <option value="RS512">RS512</option>
+        <option value="PS256">PS256</option>
+        <option value="PS384">PS384</option>
+        <option value="PS512">PS512</option>
+        <option value="ES256">ES256</option>
+        <option value="ES384">ES384</option>
+        <option value="ES512">ES512</option>
+        <option value="EdDSA">EdDSA</option>
+      </select>
+    </label>
+    <label>Secret <input type="text" name="secret" data-option placeholder="HS256/384/512 only"></label>
+  </div>
+  <div class="panel-col" style="grid-column:1/-1;">
+    <label for="jwt-key">Key (PEM) — private key to Encode, public key to verify a Decode. Required for RS*/PS*/ES*/EdDSA, unused for HS*.</label>
+    <textarea id="jwt-key" name="key" data-option placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="min-height:120px;"></textarea>
+  </div>
+  <div class="panel-actions">
+    <button class="pill-btn" type="button" data-action="copy">Copy</button>
+    <button class="pill-btn" type="button" data-action="reset">Reset</button>
+  </div>
+  <p class="error-banner" id="tool-error" hidden></p>
+  <p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Secrets and keys are used in-memory for this request only and are never stored server-side.</p>
+</div>
+{{end}}

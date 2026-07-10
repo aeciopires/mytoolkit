@@ -1,0 +1,158 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}} Paste JSON from a DevTools Network response, curl output, a <code>.json</code> file, or API docs — for a first pass at validating unfamiliar JSON, the <a href="/tools/json-format">JSON Formatter</a> works well too.</p>
+</section>
+<div class="tool-panel" data-slug="json-tree" data-client-side>
+  <div class="panel-col">
+    <label for="tool-input">Raw JSON</label>
+    <textarea id="tool-input" placeholder="Paste raw JSON here…"></textarea>
+  </div>
+  <div class="panel-col">
+    <label for="tree-output">Tree</label>
+    <div id="tree-output" class="json-tree-output" role="tree" aria-label="JSON tree"></div>
+  </div>
+  <div class="panel-actions">
+    <button class="pill-btn" type="button" id="generate-btn">Generate Tree View</button>
+    <button class="pill-btn" type="button" id="expand-all-btn">Expand All</button>
+    <button class="pill-btn" type="button" id="collapse-all-btn">Collapse All</button>
+    <button class="pill-btn" type="button" id="clear-btn">Clear</button>
+  </div>
+  <p class="error-banner" id="tool-error" hidden></p>
+</div>
+{{end}}
+
+{{define "extra-scripts"}}
+<script>
+  (function () {
+    var input = document.getElementById('tool-input');
+    var output = document.getElementById('tree-output');
+    var errorBanner = document.getElementById('tool-error');
+
+    function pluralize(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+    function typeSummary(node) {
+      var count = (node.children || []).length;
+      if (node.type === 'object') return 'Object {' + pluralize(count, 'key') + '}';
+      return 'Array [' + pluralize(count, 'item') + ']';
+    }
+
+    function renderValue(node) {
+      var span = document.createElement('span');
+      switch (node.type) {
+        case 'string':
+          span.className = 'json-value json-string';
+          span.textContent = JSON.stringify(node.value);
+          break;
+        case 'number':
+          span.className = 'json-value json-number';
+          span.textContent = String(node.value);
+          break;
+        case 'bool':
+          span.className = 'json-value json-bool';
+          span.textContent = String(node.value);
+          break;
+        default:
+          span.className = 'json-value json-null';
+          span.textContent = 'null';
+      }
+      return span;
+    }
+
+    function appendKey(parent, node) {
+      if (!node.key) return;
+      var keySpan = document.createElement('span');
+      keySpan.className = 'json-key';
+      keySpan.textContent = node.key;
+      parent.appendChild(keySpan);
+      parent.appendChild(document.createTextNode(': '));
+    }
+
+    function renderNode(node) {
+      if (node.type === 'object' || node.type === 'array') {
+        var details = document.createElement('details');
+        details.className = 'json-node';
+        details.open = true;
+
+        var summary = document.createElement('summary');
+        var icon = document.createElement('span');
+        icon.className = 'json-toggle-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        summary.appendChild(icon);
+        appendKey(summary, node);
+        var typeSpan = document.createElement('span');
+        typeSpan.className = 'json-type-summary';
+        typeSpan.textContent = typeSummary(node);
+        summary.appendChild(typeSpan);
+        details.appendChild(summary);
+
+        var childWrap = document.createElement('div');
+        childWrap.className = 'json-children';
+        (node.children || []).forEach(function (c) { childWrap.appendChild(renderNode(c)); });
+        details.appendChild(childWrap);
+        return details;
+      }
+
+      var row = document.createElement('div');
+      row.className = 'json-leaf';
+      appendKey(row, node);
+      row.appendChild(renderValue(node));
+      return row;
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.hidden = false;
+    }
+    function clearError() {
+      errorBanner.hidden = true;
+      errorBanner.textContent = '';
+    }
+
+    function generate() {
+      clearError();
+      if (!input.value.trim()) {
+        output.innerHTML = '';
+        showError('input must not be empty');
+        return;
+      }
+      fetch('/api/v1/tools/json-tree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: input.value })
+      }).then(function (r) { return r.json(); }).then(function (json) {
+        if (!json.success) {
+          output.innerHTML = '';
+          showError(json.error.message);
+          return;
+        }
+        output.innerHTML = '';
+        output.appendChild(renderNode(json.data.tree));
+      }).catch(function (e) {
+        showError(String(e));
+      });
+    }
+
+    document.getElementById('generate-btn').addEventListener('click', generate);
+    document.getElementById('expand-all-btn').addEventListener('click', function () {
+      output.querySelectorAll('details.json-node').forEach(function (d) { d.open = true; });
+    });
+    document.getElementById('collapse-all-btn').addEventListener('click', function () {
+      output.querySelectorAll('details.json-node').forEach(function (d) { d.open = false; });
+    });
+    document.getElementById('clear-btn').addEventListener('click', function () {
+      input.value = '';
+      output.innerHTML = '';
+      clearError();
+    });
+
+    // Ctrl/Cmd+Enter in the textarea also generates, for keyboard workflows.
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        generate();
+      }
+    });
+  })();
+</script>
+{{end}}

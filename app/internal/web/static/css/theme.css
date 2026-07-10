@@ -1,0 +1,91 @@
+:root {
+  --color-bg: #FEF7FF;
+  --color-bg-alt: #F7F2FA;
+  --color-surface: #EFE3F6;
+  --color-surface-high: #E6D9F2;
+  --color-primary: #6750A4;
+  --color-primary-container: #EADDFF;
+  --color-on-primary-container: #21005D;
+  --color-text: #1D1B20;
+  --color-text-muted: #49454F;
+  --color-border: #CAC4D0;
+  --color-outline: #79747E;
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --color-on-primary: #FFFFFF;
+
+  /* M3 4dp spacing scale: https://m3.material.io/styles/spacing/overview */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* M3 state-layer opacities: https://m3.material.io/foundations/interaction/states/state-layers */
+  --state-hover: 0.08;
+  --state-focus: 0.12;
+  --state-press: 0.12;
+
+  /* M3 shape scale (subset): https://m3.material.io/styles/shape/overview */
+  --shape-xs: 8px;
+  --shape-sm: 12px;
+  --shape-md: 16px;
+  --shape-lg: 24px;
+  --shape-full: 999px;
+
+  /* JSON Tree Viewer syntax colors, inspired by VS Code's default light theme */
+  --json-key: #0451A5;
+  --json-string: #A31515;
+  --json-number: #098658;
+  --json-bool: #0000FF;
+  --json-null: #6E6E6E;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #141218;
+  --color-bg-alt: #211F26;
+  --color-surface: #2B2930;
+  --color-surface-high: #362F3C;
+  --color-primary: #D0BCFF;
+  --color-primary-container: #4F378B;
+  --color-on-primary-container: #EADDFF;
+  --color-text: #E6E0E9;
+  --color-text-muted: #CAC4D0;
+  --color-border: #49454F;
+  --color-outline: #938F99;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --color-on-primary: #381E72;
+
+  /* JSON Tree Viewer syntax colors, inspired by VS Code's default dark theme */
+  --json-key: #9CDCFE;
+  --json-string: #CE9178;
+  --json-number: #B5CEA8;
+  --json-bool: #569CD6;
+  --json-null: #9E9E9E;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #141218;
+    --color-bg-alt: #211F26;
+    --color-surface: #2B2930;
+    --color-surface-high: #362F3C;
+    --color-primary: #D0BCFF;
+    --color-primary-container: #4F378B;
+    --color-on-primary-container: #EADDFF;
+    --color-text: #E6E0E9;
+    --color-text-muted: #CAC4D0;
+    --color-border: #49454F;
+    --color-outline: #938F99;
+    --color-scrim: rgba(0, 0, 0, 0.6);
+    --color-on-primary: #381E72;
+
+    --json-key: #9CDCFE;
+    --json-string: #CE9178;
+    --json-number: #B5CEA8;
+    --json-bool: #569CD6;
+    --json-null: #9E9E9E;
+  }
+}
