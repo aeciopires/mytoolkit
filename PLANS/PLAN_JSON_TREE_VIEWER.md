@@ -22,6 +22,8 @@ Shared architecture, REST envelope, CLI conventions, metrics, health check, and 
 
 Parses raw JSON text and returns a navigable tree structure (nested nodes with type and value metadata) so the web UI can render an expandable/collapsible tree view, inspired by `10015.io/tools/json-tree-viewer`.
 
+**Revised after initial implementation**, per a detailed feature spec: this is a comprehension/debugging tool for large, deeply-nested API responses (hundreds of lines), not a live-as-you-type formatter. The web page therefore requires an explicit "Generate Tree View" action (plus "Expand All"/"Collapse All"/"Clear") rather than converting on every keystroke; error messages must carry the exact line/column of the problem so users can locate malformed JSON without guessing; and the tree is color-coded by value type (VS Code–inspired) so type mistakes (e.g. the string `"null"` vs. the literal `null`) are visually obvious, not just readable.
+
 ## Business logic
 
 Package: `internal/tools/jsontree/jsontree.go`.
@@ -49,7 +51,8 @@ Implementation uses `encoding/json` with `json.Decoder` (not `Unmarshal` into `m
 
 Edge cases:
 - Empty input → `ErrEmptyInput`, mapped to HTTP 400.
-- Malformed JSON → wraps the `encoding/json` syntax error with position info, mapped to HTTP 400 (`INVALID_JSON`).
+- Malformed JSON → wraps the `encoding/json` syntax error with a `(at line L, column C)` suffix (1-indexed), computed from `json.SyntaxError.Offset` when available or `dec.InputOffset()` otherwise, mapped to HTTP 400 (`INVALID_JSON`). This is a hard requirement, not a nice-to-have — the whole point of the tool is fast comprehension of large responses, and "unexpected end of JSON input" with no location forces the user to hunt for the problem manually.
+- Trailing content after a complete top-level value (e.g. `{"a":1}garbage`, or two concatenated JSON values) → rejected explicitly via a `dec.More()` check after the top-level parse, not silently ignored.
 - Deeply nested input → no artificial depth limit for MVP; document as a known limitation (potential stack growth) rather than adding complexity upfront.
 - Very large numbers → preserved as `json.Number` (via decoder's `UseNumber()`) to avoid float64 precision loss.
 
@@ -70,13 +73,28 @@ $ echo '{"a":1,"b":[true,null]}' | mytoolkit json-tree
 {
   "type": "object",
   "children": [
-    {"key": "a", "type": "number", "value": 1},
-    {"key": "b", "type": "array", "children": [
-      {"type": "bool", "value": true},
-      {"type": "null"}
-    ]}
+    {
+      "key": "a",
+      "type": "number",
+      "value": "1"
+    },
+    {
+      "key": "b",
+      "type": "array",
+      "children": [
+        { "type": "bool", "value": true },
+        { "type": "null" }
+      ]
+    }
   ]
 }
+```
+
+Errors report the exact position of the problem:
+
+```
+$ echo '{"a":}' | mytoolkit json-tree
+Error: invalid character '}' looking for beginning of value (at line 1, column 6)
 ```
 
 ## REST
@@ -96,7 +114,7 @@ Success response (200):
     "tree": {
       "type": "object",
       "children": [
-        { "key": "a", "type": "number", "value": 1 },
+        { "key": "a", "type": "number", "value": "1" },
         { "key": "b", "type": "array", "children": [
           { "type": "bool", "value": true },
           { "type": "null" }
@@ -108,16 +126,20 @@ Success response (200):
 }
 ```
 
-Error response (400):
+Error response (400) — request `{ "input": "{\"a\":}" }`:
 ```json
-{ "success": false, "error": { "code": "INVALID_JSON", "message": "unexpected end of JSON input" } }
+{ "success": false, "error": { "code": "INVALID_JSON", "message": "invalid character '}' looking for beginning of value (at line 1, column 6)" } }
 ```
 
 ## Web UI
 
-- Left panel: `<textarea>` labeled "Paste raw JSON", with a "Reset" button.
-- Right panel: rendered tree, collapsible per node (client-side JS toggles a `hidden` class on `<ul>` children), with object/array size shown next to the key (e.g. `b: Array(2)`).
-- Live update on input change (debounced `fetch()` call to `/api/v1/tools/json-tree`), matching the reference site's "no separate submit button" pattern.
+- Left panel: `<textarea id="tool-input">` labeled "Raw JSON".
+- Right panel: `<div id="tree-output">` rendered as nested `<details open>`/`<summary>` elements (native disclosure semantics, custom-styled — no native marker, a CSS-only `▶`/`▼` icon driven by the `[open]` attribute).
+- Object/array summaries read exactly `Object {N keys}` / `Array [N items]` (singular "key"/"item" at N=1), not a generic `type(size)` placeholder.
+- Actions: **Generate Tree View** (primary — calls `POST /api/v1/tools/json-tree`, the only trigger for a REST call on this page), **Expand All** / **Collapse All** (client-side only, toggle `.open` on every node, no re-fetch), **Clear** (empties input and output).
+- **No live-as-you-type conversion** — `.tool-panel` carries `data-client-side` specifically to opt out of the shared `tool-common.js` fetch-on-input wiring (see `PLAN_ARCHITECTURE.md`'s Shared code and configuration reuse table), since re-parsing a large pasted API response on every keystroke is wasteful and janky. This is a deliberate deviation from most other tools' live-update pattern, justified by this tool's use case (large, deliberately-pasted responses, not short incremental text).
+- Type-based syntax coloring: object/array keys, string/number/bool/null values each get a distinct color via `--json-key`/`--json-string`/`--json-number`/`--json-bool`/`--json-null` CSS custom properties (VS Code–inspired, separate light/dark values in `theme.css`) — so e.g. the string `"null"` (orange/red, quoted) is visually distinguishable from the literal `null` (gray, unquoted) at a glance, not just on close reading.
+- A one-line tip near the input links to the JSON Formatter tool for a first-pass validate/pretty-print — this app has no separate "JSON Validator"/"JSONPath Tester" tool, so the UI doesn't reference tools that don't exist.
 - Reuses the shared layout/theme/nav from `PLAN_ARCHITECTURE.md`.
 
 ## Metrics
@@ -131,8 +153,12 @@ Table-driven tests in `internal/tools/jsontree/jsontree_test.go`:
 - Valid nested object/array mix.
 - Empty input → error.
 - Malformed JSON (trailing comma, unclosed brace) → error.
+- Error message includes `line`/`column` position, including for a problem on a line other than the first.
+- Trailing data after a complete value (e.g. `{"a":1}garbage`, two concatenated values) → rejected, not silently ignored.
 - Large integer (beyond float64 precision) preserved exactly via `json.Number`.
 - Unicode string values preserved.
+
+The web page's Expand All/Collapse All, Generate-on-click-not-on-keystroke, and color coding are frontend-only and have no `go test` coverage — verified manually/with a scripted browser check instead (see `docs/testing/json-tree.md`).
 
 ## Documentation
 

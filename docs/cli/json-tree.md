@@ -40,4 +40,11 @@ $ echo '{"a":1,"b":[true,null]}' | mytoolkit json-tree
 }
 ```
 
+Errors report the exact line and column of the problem:
+
+```
+$ echo '{"a":}' | mytoolkit json-tree
+Error: invalid character '}' looking for beginning of value (at line 1, column 6)
+```
+
 See `mytoolkit json-tree --help` for the full flag list.

@@ -12,6 +12,7 @@
   - [Environment variables](#environment-variables)
   - [Testing](#testing)
   - [Docker](#docker)
+  - [Observability (Prometheus + Grafana)](#observability-prometheus--grafana)
   - [Kubernetes / Helm](#kubernetes--helm)
   - [Makefile targets](#makefile-targets)
   - [Developer](#developer)
@@ -25,7 +26,7 @@
 
 It ships as a single Go binary that runs as a **web application** (REST API + server-rendered UI) by default, or as a **CLI** for any individual tool.
 
-Sites related:
+Tools sites related:
 
 - [All Online Tools in “One Box”](https://10015.io/tools/case-converter)
 - [JSON Web Token (JWT) Debugger](https://www.jwt.io/)
@@ -34,6 +35,29 @@ Sites related:
 - [JSON Formatter](https://jsonformatter.curiousconcept.com/)
 - [YAML Formatter](https://jsonformatter.org/yaml-formatter)
 - [URL Encode/Decode](https://www.urlencoder.org)
+- [JSON Tree Viewer](https://jsonifypro.com/json-viewer.html)
+- [JSON Path Tester](https://jsonifypro.com/json-path-tester.html)
+- [CSV to JSON Converter](https://jsonifypro.com/csv-to-json-converter.html)
+- [JSONifyPro](https://jsonifypro.com/index.html)
+- [AlphaDevTools](https://alphadevtools.com/)
+- [JSON Formatters Pro](https://jsonformatterspro.com/json-to-yaml/)
+- [DevOps Projects HQ](https://devopsprojectshq.com/tools/)
+- [IAM Policy JSON to Terraform](https://flosell.github.io/iam-policy-json-to-terraform/)
+- [GitHub - flosell/iam-policy-json-to-terraform](https://github.com/flosell/iam-policy-json-to-terraform/)
+- [GitHub - almeida-matheus/policy-converter-aws-to-terraform](https://github.com/almeida-matheus/policy-converter-aws-to-terraform)
+- [IAM CloudCopilot](https://iam.cloudcopilot.io/tools/iam-convert)
+- [GitHub - cloud-copilot/iam-convert](https://github.com/cloud-copilot/iam-convert)
+- [Tiktokenizer-Vercel](https://tiktokenizer.vercel.app)
+- [GitHub - dqbd/tiktokenizer](https://github.com/dqbd/tiktokenizer)
+- [JSON.org](https://www.json.org/json-en.html)
+- [YAML.org](https://yaml.org/)
+- [W3Schools - Tools](https://www.w3schools.com/tools)
+- [jsonlint - tools](https://jsonlint.com/tools)
+- [Material Design 3](https://m3.material.io/)
+- [Golang JWT](https://golang-jwt.github.io/jwt/)
+- [GitHub - golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- [Toon Format](https://toonformat.dev/)
+- [GitHub - toon-format/toon](https://github.com/toon-format/toon)
 
 ## Screenshots
 
@@ -47,7 +71,17 @@ Images live in [`images/`](images/).
 |---|---|
 | ![Hash Generator tool page, light theme](images/hash-generator-light.png) | ![Password Generator tool page, dark theme](images/password-generator-dark.png) |
 
+| Navigation drawer + search |
+|---|
+| ![Navigation drawer open, search filtering for "hash"](images/nav-drawer-search.png) |
+
 Append `?theme=light` or `?theme=dark` to any page URL to force a theme (useful for screenshots/demos); otherwise the toggle in the top-right corner persists your choice in `localStorage`.
+
+Every page shares the same navigation shell:
+- **☰ hamburger menu** — opens/collapses a navigation drawer listing every tool (with a scrim behind it; click the scrim, the ✕, or press Escape to close).
+- **🔎 search bar** — filters tools client-side, live, as you type, matching against each tool's name and description (the same text shown on its homepage card and tool-page hero card); click a result or press Enter to jump to it.
+- **← Back to Home** — shown on every tool page, next to the brand.
+- **Footer** — on every page, with developer/contact links.
 
 ## Features
 
@@ -63,10 +97,13 @@ Append `?theme=light` or `?theme=dark` to any page URL to force a theme (useful 
 - 🔤 **Base64 Encode/Decode** – Encode and decode data using Base64.
 - 🔡 **Case Converter** – Convert text between **Sentence case**, **UPPER CASE**, **lower case**, **Title Case**, **MiXeD CaSe**, and **iNvErSe cAsE**.
 - 🪶 **JSON to TOON Converter** – Convert JSON into [TOON](https://github.com/toon-format/spec) to shrink LLM token usage. The web page converts **entirely in your browser** — no data is sent to the server for the interactive tool (REST/CLI remain available for scripted use).
+- 🔃 **YAML to JSON Converter** – Convert a YAML document to pretty-printed JSON, powered by [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml).
+- 🔄 **JSON to YAML Converter** – Convert a JSON document to YAML, powered by [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml).
+- ☸️ **Kubernetes YAML Validator** – Validate that a YAML document (single or multi-document) has the fields the Kubernetes API requires (`apiVersion`, `kind`, and a well-formed `metadata` block), powered by [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml). Does not validate against a specific resource's full schema — see the docs.
 
 ## Architecture
 
-Every tool's business logic lives in one pure Go package (`src/internal/tools/<name>`), reused by all three surfaces — the REST handler, the CLI subcommand, and (via `fetch()`) the web UI:
+Every tool's business logic lives in one pure Go package (`app/internal/tools/<name>`), reused by all three surfaces — the REST handler, the CLI subcommand, and (via `fetch()`) the web UI:
 
 ```mermaid
 flowchart TB
@@ -105,35 +142,35 @@ Request lifecycle for a single tool call (REST or web — the web UI is itself a
 
 ```mermaid
 sequenceDiagram
-    participant C as Client (Web/REST)
+    participant C as Client (Web or REST)
     participant R as chi Router
-    participant MW as Metrics + Logging middleware
+    participant MW as Metrics and Logging middleware
     participant H as Tool handler
-    participant T as internal/tools/&lt;name&gt;
+    participant T as Tool package (internal/tools)
 
-    C->>R: POST /api/v1/tools/&lt;slug&gt;
+    C->>R: POST to a tool endpoint
     R->>MW: dispatch
     MW->>H: ServeHTTP
     H->>T: Do(input, options)
     alt success
         T-->>H: output
-        H-->>MW: 200 {success, data, meta}
-    else validation/apperr
-        T-->>H: *apperr.Error
-        H-->>MW: 4xx {success:false, error}
+        H-->>MW: 200 success, data, meta
+    else validation or apperr
+        T-->>H: apperr.Error
+        H-->>MW: 4xx success false, error
     end
-    MW-->>C: response (+ Prometheus/zerolog recorded)
+    MW-->>C: response (Prometheus and zerolog recorded)
 ```
 
 Each feature's own request/response examples and a per-feature Mermaid note live in its `docs/api/<slug>.md` file — see [Documentation](#documentation).
 
-Shared cross-cutting packages (see `src/CLAUDE.md` and `PLANS/PLAN_ARCHITECTURE.md` for the full rationale): `apperr` (error codes), `textio` (CLI `--in`/`--out`), `config` (flag/env/default resolution), `response` (JSON envelope), `registry` (tool metadata).
+Shared cross-cutting packages (see `CLAUDE.md` and `PLANS/PLAN_ARCHITECTURE.md` for the full rationale): `apperr` (error codes), `textio` (CLI `--in`/`--out`), `config` (flag/env/default resolution), `response` (JSON envelope), `registry` (tool metadata).
 
 ## Directory structure
 
 ```
 mytoolkit/
-├── src/                    Go module root — all Go/HTML/CSS/JS source
+├── app/                    Go module root — all Go/HTML/CSS/JS source
 │   ├── cmd/mytoolkit/       entrypoint
 │   ├── internal/
 │   │   ├── apperr/          shared error type
@@ -155,6 +192,7 @@ mytoolkit/
 ├── .skills/<tool>/SKILL.md  dev skill per tool
 ├── helm/mytoolkit/          Helm chart
 ├── images/                  README screenshots
+├── observability/           Prometheus scrape config + Grafana dashboard/provisioning
 ├── PLANS/                   design docs (architecture + one per feature)
 ├── Dockerfile
 ├── docker-compose.yml
@@ -172,7 +210,7 @@ Web mode is the default — running the binary with no arguments starts the serv
 ```
 make run
 # or
-cd src && go run ./cmd/mytoolkit serve --port 8080
+cd app && go run ./cmd/mytoolkit serve --port 8080
 ```
 
 Then open http://localhost:8080.
@@ -209,6 +247,9 @@ The version comes from the repo-root [`VERSION`](VERSION) file — the single so
 | Base64 Encode/Decode | [docs/api/base64.md](docs/api/base64.md) | [docs/cli/base64.md](docs/cli/base64.md) | [docs/testing/base64.md](docs/testing/base64.md) |
 | Case Converter | [docs/api/case-convert.md](docs/api/case-convert.md) | [docs/cli/case-convert.md](docs/cli/case-convert.md) | [docs/testing/case-convert.md](docs/testing/case-convert.md) |
 | JSON to TOON Converter | [docs/api/json-toon.md](docs/api/json-toon.md) | [docs/cli/json-toon.md](docs/cli/json-toon.md) | [docs/testing/json-toon.md](docs/testing/json-toon.md) |
+| YAML to JSON Converter | [docs/api/yaml-to-json.md](docs/api/yaml-to-json.md) | [docs/cli/yaml-to-json.md](docs/cli/yaml-to-json.md) | [docs/testing/yaml-to-json.md](docs/testing/yaml-to-json.md) |
+| JSON to YAML Converter | [docs/api/json-to-yaml.md](docs/api/json-to-yaml.md) | [docs/cli/json-to-yaml.md](docs/cli/json-to-yaml.md) | [docs/testing/json-to-yaml.md](docs/testing/json-to-yaml.md) |
+| Kubernetes YAML Validator | [docs/api/k8s-validate.md](docs/api/k8s-validate.md) | [docs/cli/k8s-validate.md](docs/cli/k8s-validate.md) | [docs/testing/k8s-validate.md](docs/testing/k8s-validate.md) |
 
 See also: [Environment variables](docs/environment-variables.md), and one `.skills/<tool>/SKILL.md` per tool for implementation notes.
 
@@ -225,7 +266,7 @@ Full details: [docs/environment-variables.md](docs/environment-variables.md). Co
 ## Testing
 
 ```
-cd src
+cd app
 go test ./...
 go test ./... -coverprofile=coverage.out && go tool cover -func=coverage.out
 ```
@@ -245,6 +286,17 @@ docker compose up --build
 ```
 
 To publish to Docker Hub, run `make docker-push` — it interactively prompts for your Docker Hub username, password/access token (hidden input, piped straight into `docker login --password-stdin`, never printed or stored), and target repository, then builds and pushes a multi-arch (`linux/amd64` + `linux/arm64`) image and logs out. A Docker Hub [access token](https://docs.docker.com/security/for-developers/access-tokens/) is recommended over your account password.
+
+## Observability (Prometheus + Grafana)
+
+`docker compose up --build` also starts Prometheus (scraping `mytoolkit`'s `/metrics` every 15s, per [`observability/prometheus.yml`](observability/prometheus.yml)) and Grafana, pre-provisioned with a Prometheus data source and the **MyToolkit — Application Metrics** dashboard ([`observability/mytoolkit-dashboard.json`](observability/mytoolkit-dashboard.json)) — no manual setup needed.
+
+- Prometheus: <http://localhost:9090>
+- Grafana: <http://localhost:3000> (login `admin` / `admin`, per `GF_SECURITY_ADMIN_PASSWORD` in `docker-compose.yml`; Grafana will prompt to change it on first login — safe to skip for local use)
+
+The dashboard covers every metric the app exposes: HTTP request rate/error-rate by tool and status, request latency percentiles (overall and per-tool), successful-invocation counts per tool (the same data behind `GET /api/v1/metrics/ranking`), and Go runtime/process health (goroutines, memory, GC pauses, open file descriptors, CPU, network I/O). See `.skills/observability/SKILL.md` for the provisioning layout and how to add a panel for a new metric.
+
+**Note on editing the dashboard while the stack is running**: `observability/mytoolkit-dashboard.json` is bind-mounted as a single file, which some editors/tools replace via write-new-file-then-rename — Docker's bind mount then keeps referencing the old file. If your edits don't show up after Grafana's `updateIntervalSeconds` (30s) or a manual `POST /api/admin/provisioning/dashboards/reload`, run `docker compose restart grafana`.
 
 ## Kubernetes / Helm
 

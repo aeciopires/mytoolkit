@@ -7,7 +7,7 @@
 # Case Converter — Testing
 
 ```
-$ cd src && go test ./internal/tools/caseconvert/... -v
+$ cd app && go test ./internal/tools/caseconvert/... -v
 --- PASS: TestConvert (0.00s)
     --- PASS: TestConvert/sentence_basic
     --- PASS: TestConvert/sentence_consecutive_terminators

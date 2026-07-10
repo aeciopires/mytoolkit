@@ -12,7 +12,7 @@
 
 `POST /api/v1/tools/json-tree`
 
-Parses raw JSON into a navigable tree structure, preserving object key order.
+Parses raw JSON into a navigable tree structure, preserving object key order. Called by the web page only when the user clicks "Generate Tree View" — not on every keystroke — since large pasted responses make live-as-you-type re-parsing wasteful.
 
 ## Request
 
@@ -43,8 +43,28 @@ Parses raw JSON into a navigable tree structure, preserving object key order.
 
 ## Error response (400)
 
+Every error message includes the exact 1-indexed line and column of the problem, not just a bare parser message. Request:
+
 ```json
-{ "success": false, "error": { "code": "INVALID_JSON", "message": "invalid character '}' looking for beginning of object key string" } }
+{ "input": "{\"a\":}" }
+```
+
+Response:
+
+```json
+{ "success": false, "error": { "code": "INVALID_JSON", "message": "invalid character '}' looking for beginning of value (at line 1, column 6)" } }
+```
+
+A second, multi-line example — request `{ "input": "{\n  \"a\": 1,\n  \"b\":\n}" }` — reports the problem on the line it actually occurs on:
+
+```json
+{ "success": false, "error": { "code": "INVALID_JSON", "message": "invalid character '}' looking for beginning of value (at line 4, column 1)" } }
+```
+
+Content after a complete JSON value (e.g. two top-level values, or trailing garbage like `{"a":1}garbage`) is rejected rather than silently ignored:
+
+```json
+{ "success": false, "error": { "code": "INVALID_JSON", "message": "unexpected extra data after the JSON value (at line 1, column 8)" } }
 ```
 
 Error codes: `EMPTY_INPUT`, `INVALID_JSON`.
@@ -61,11 +81,11 @@ sequenceDiagram
     Client->>Router: POST /api/v1/tools/json-tree
     Router->>Handler: dispatch (metrics + logging middleware)
     Handler->>Tool: Parse(input)
-    alt valid JSON
+    alt valid JSON, nothing trailing
         Tool-->>Handler: Node tree (key order preserved)
         Handler-->>Client: 200 {success, data.tree}
-    else invalid/empty JSON
-        Tool-->>Handler: *apperr.Error
+    else empty, invalid, or trailing data
+        Tool-->>Handler: apperr.Error with line/column position
         Handler-->>Client: 400 {success:false, error}
     end
 ```

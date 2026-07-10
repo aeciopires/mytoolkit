@@ -47,6 +47,8 @@ Response:
 
 Error codes: `EMPTY_INPUT`, `INVALID_JSON`, `INVALID_OPTION` (bad `mode`).
 
+**Note:** this endpoint is used by the CLI and by scripted REST clients. The web page's Validate/Beautify/Minify buttons run entirely in the browser via native `JSON.parse()`/`JSON.stringify()` instead of calling this endpoint, so that error messages exactly match real browser/Node.js `JSON.parse()` behavior (e.g. `Unexpected token } in JSON at position 45`) rather than Go's `encoding/json` wording. See `docs/testing/json-format.md` for how the web page is verified.
+
 ## Workflow
 
 ```mermaid

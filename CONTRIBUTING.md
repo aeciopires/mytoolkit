@@ -11,7 +11,7 @@ Your contribution is very welcome!
 
 Follow these steps whenever you want to improve this repository.
 
-- Install the following packages: `git`, `go` (see `src/go.mod` for the minimum version), and a text editor of your choice. Run `make check-tools` to verify your machine has everything needed for development, build, test, and deploy.
+- Install the following packages: `git`, `go` (see `app/go.mod` for the minimum version), and a text editor of your choice. Run `make check-tools` to verify your machine has everything needed for development, build, test, and deploy.
 - Fork this repository. See this tutorial: https://help.github.com/en/github/getting-started-with-github/fork-a-repo
 - Configure your GitHub account to use SSH instead of HTTPS. Watch this tutorial to learn how to set it up: https://help.github.com/en/github/authenticating-to-github/adding-a-new-ssh-key-to-your-github-account
 - Clone the resulting fork to your computer.
@@ -37,7 +37,7 @@ git branch
 
 - The branch in use is marked with a `*` before its name.
 - Make the necessary changes.
-- If you touched Go code under `src/`, run the checks before committing:
+- If you touched Go code under `app/`, run the checks before committing:
 
 ```bash
 make fmt

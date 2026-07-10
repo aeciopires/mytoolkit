@@ -7,7 +7,7 @@
 # Hash Generator — Testing
 
 ```
-$ cd src && go test ./internal/tools/hashgen/... -v
+$ cd app && go test ./internal/tools/hashgen/... -v
 --- PASS: TestGenerate (0.00s)
     --- PASS: TestGenerate/md5_hello
     --- PASS: TestGenerate/sha1_hello

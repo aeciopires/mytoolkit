@@ -6,7 +6,7 @@ PLATFORMS      := linux/amd64,linux/arm64
 NAMESPACE      := $(APP_NAME)
 KIND_CLUSTER   := kind-multinodes
 KUBE_CONTEXT   := kind-$(KIND_CLUSTER)
-SRC            := src
+SRC            := app
 BIN_DIR        := bin
 LDFLAGS        := -X github.com/aeciopires/mytoolkit/internal/version.Version=$(VERSION)
 

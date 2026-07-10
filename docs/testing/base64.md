@@ -7,7 +7,7 @@
 # Base64 Encode/Decode — Testing
 
 ```
-$ cd src && go test ./internal/tools/base64enc/... -v
+$ cd app && go test ./internal/tools/base64enc/... -v
 --- PASS: TestProcess (0.00s)
     --- PASS: TestProcess/encode_standard
     --- PASS: TestProcess/decode_standard

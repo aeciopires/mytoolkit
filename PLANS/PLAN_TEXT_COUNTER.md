@@ -89,6 +89,7 @@ This tool never returns an error for empty/whitespace-only input — errors are 
 
 - Single `<textarea>` input.
 - Live-updating stat row below it (characters / characters without spaces / words / lines), recalculated on every keystroke — this can run **entirely client-side in JS** without a round trip, but still POSTs to the REST endpoint so usage metrics are recorded consistently with the other tools (debounced, e.g. every 500ms of inactivity, to avoid excessive requests while still counting the interaction as "usage").
+- A **Clear** button empties the input, resets all four stats to `0`, and clears any error banner — added after the fact since the page originally had no way to reset without manually selecting and deleting the textarea contents.
 
 ## Metrics
 

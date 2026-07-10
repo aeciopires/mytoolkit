@@ -91,7 +91,7 @@ Error (400):
 ## Web UI
 
 - Input `<textarea>` + output `<textarea readonly>`.
-- Encode/Decode toggle, Variant selector (Standard/URL-safe), "Include padding" checkbox, "Copy", "Swap input/output", "Reset".
+- Encode/Decode switch, Variant selector (Standard/URL-safe), "Include padding" switch, "Copy", "Reset". (Both are single standalone on/off settings, styled as M3 switches, not checkboxes — see `PLAN_ARCHITECTURE.md`'s Theming section.)
 - Live processing on input change via debounced `fetch()`.
 - Note near the decode output that non-UTF-8 decoded content may render as replacement characters in the browser (matches the documented business-logic limitation above).
 

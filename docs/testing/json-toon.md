@@ -12,7 +12,7 @@
 ## Go implementation
 
 ```
-$ cd src && go test ./internal/tools/jsontoon/... -v
+$ cd app && go test ./internal/tools/jsontoon/... -v
 --- PASS: TestConvertTabularArray (0.00s)
 --- PASS: TestConvertSimpleObject (0.00s)
 --- PASS: TestConvertArrayOfArrays (0.00s)
@@ -54,5 +54,5 @@ Last run: **20/20 cases passed**, exact string equality with the Go output for e
 ## Zero-network verification (web page)
 
 Confirmed two ways:
-1. **Source inspection**: `internal/web/static/js/json-toon.js` contains no `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` calls — `grep -n "fetch\|XMLHttpRequest\|WebSocket" internal/web/static/js/json-toon.js` (from `src/`) returns nothing.
+1. **Source inspection**: `internal/web/static/js/json-toon.js` contains no `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` calls — `grep -n "fetch\|XMLHttpRequest\|WebSocket" internal/web/static/js/json-toon.js` (from `app/`) returns nothing.
 2. **Runtime inspection**: load `/tools/json-toon` in a real browser, open DevTools → Network, type/paste JSON into the input — no request to `/api/v1/tools/json-toon` (or anywhere else) appears.

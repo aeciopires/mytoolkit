@@ -7,7 +7,7 @@
 # Password Generator — Testing
 
 ```
-$ cd src && go test ./internal/tools/password/... -v
+$ cd app && go test ./internal/tools/password/... -v
 --- PASS: TestGenerateLength (0.00s)
 --- PASS: TestGenerateOnlyEnabledClasses (0.00s)
 --- PASS: TestGenerateNoCharsetSelected (0.00s)
