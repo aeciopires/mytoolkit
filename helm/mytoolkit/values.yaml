@@ -1,0 +1,113 @@
+# -- Number of pod replicas
+replicaCount: 1
+
+image:
+  # -- Container image repository
+  repository: mytoolkit
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag; defaults to the chart's appVersion if empty
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+# -- Overrides the chart's computed fullname
+nameOverride: ""
+# -- Overrides the chart's computed fullname (release-qualified)
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Whether to create a ServiceAccount
+  create: true
+  # -- Extra annotations for the ServiceAccount
+  annotations: {}
+  # -- ServiceAccount name; generated if empty
+  name: ""
+
+# -- Extra pod annotations, merged with the built-in Prometheus scrape annotations
+podAnnotations: {}
+
+# -- Pod-level securityContext
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 65532
+
+# -- Container-level securityContext
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Kubernetes Service port
+  port: 8080
+
+ingress:
+  # -- Enable an Ingress resource
+  enabled: false
+  # -- IngressClass name
+  className: ""
+  # -- Extra Ingress annotations
+  annotations: {}
+  # -- Ingress hosts
+  hosts:
+    - host: mytoolkit.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+# -- Pod resource requests/limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+autoscaling:
+  # -- Enable a HorizontalPodAutoscaler
+  enabled: false
+  # -- Minimum replica count
+  minReplicas: 1
+  # -- Maximum replica count
+  maxReplicas: 5
+  # -- Target average CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+
+secret:
+  # -- Create a Secret resource (placeholder for future secret-backed config; disabled by default)
+  enabled: false
+  # -- Secret data as plain key/value pairs (base64-encoded by the template)
+  data: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+# -- Tolerations for pod scheduling
+tolerations: []
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+env:
+  # -- Log level: debug, info, warn, error (MYTOOLKIT_LOG_LEVEL)
+  logLevel: info
+
+metrics:
+  serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor (requires the CRD to be installed)
+    enabled: false
+    # -- Scrape interval for the ServiceMonitor
+    interval: 30s
+    # -- Extra labels on the ServiceMonitor (e.g. to match a Prometheus release label selector)
+    labels: {}
+
+# -- Extra environment variables appended verbatim (list of name/value or valueFrom entries)
+extraEnv: []

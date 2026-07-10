@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}}</p>
+</section>
+<div class="tool-panel" data-slug="jwt">
+  <div class="panel-col">
+    <label for="tool-input">Token (decode) / Claims JSON (encode)</label>
+    <textarea id="tool-input" placeholder="Paste a JWT to decode, or claims JSON to encode…"></textarea>
+  </div>
+  <div class="panel-col">
+    <label for="tool-output">Result</label>
+    <textarea id="tool-output" readonly></textarea>
+  </div>
+  <div class="options-row">
+    <label>Mode
+      <select name="mode" data-option>
+        <option value="decode">Decode</option>
+        <option value="encode">Encode</option>
+      </select>
+    </label>
+    <label>Secret <input type="text" name="secret" data-option placeholder="optional for decode"></label>
+    <label>Algorithm
+      <select name="algorithm" data-option>
+        <option value="HS256">HS256</option>
+        <option value="HS384">HS384</option>
+        <option value="HS512">HS512</option>
+      </select>
+    </label>
+  </div>
+  <div class="panel-actions">
+    <button class="pill-btn" type="button" data-action="copy">Copy</button>
+    <button class="pill-btn" type="button" data-action="reset">Reset</button>
+  </div>
+  <p class="error-banner" id="tool-error" hidden></p>
+  <p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Secrets are used in-memory for this request only and are never stored server-side.</p>
+</div>
+{{end}}

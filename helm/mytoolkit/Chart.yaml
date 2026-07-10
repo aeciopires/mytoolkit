@@ -1,0 +1,19 @@
+apiVersion: v2
+name: mytoolkit
+description: A suite of developer utilities exposed as a web app, REST API, and CLI.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/aeciopires/mytoolkit
+sources:
+  - https://github.com/aeciopires/mytoolkit
+keywords:
+  - developer-tools
+  - utilities
+  - json
+  - yaml
+  - jwt
+maintainers:
+  - name: Aecio dos Santos Pires
+    url: https://aeciopires.com/
+icon: https://raw.githubusercontent.com/aeciopires/mytoolkit/main/images/homepage-light.png

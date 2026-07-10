@@ -1,0 +1,78 @@
+<!-- TOC -->
+
+- [CLAUDE.md](#claudemd)
+  - [Project](#project)
+  - [Repository layout](#repository-layout)
+  - [Commands](#commands)
+  - [Adding a new tool](#adding-a-new-tool)
+  - [Conventions](#conventions)
+
+<!-- TOC -->
+
+# CLAUDE.md
+
+Guidance for Claude Code (and other agents) working in this repository.
+
+## Project
+
+MyToolkit is a Go application exposing 12 developer utilities as a web UI, a REST API, and a CLI — all three surfaces share one pure-function implementation per tool, with one documented exception (JSON to TOON Converter's web page, see Conventions below). See `PLANS/PLAN_ARCHITECTURE.md` for the full architecture rationale and `PLANS/PLAN_<FEATURE>.md` for each tool's design.
+
+## Repository layout
+
+Go/HTML/CSS/JS source lives under `src/` (its own Go module root — `src/go.mod`), separate from planning (`PLANS/`), documentation (`docs/`, `.skills/`), and deployment (`helm/`, `Dockerfile`, `docker-compose.yml`) files at the repo root.
+
+```
+src/
+  cmd/mytoolkit/main.go       entrypoint
+  internal/
+    apperr/                   shared error type + OneOf[T] validator
+    textio/                   shared --in/--out read/write helpers
+    config/                   flag > env > default resolution
+    response/                 shared JSON success/error envelope (leaf package)
+    registry/                 tool metadata: slug, name, description
+    cli/                      cobra commands; one file per tool, self-registers via init()
+    httpapi/                  chi router, health, generic REST handler wrapper
+    metrics/                  Prometheus collectors + usage ranking
+    web/                      html/template pages, embedded CSS/JS
+    tools/<name>/             pure business logic, one package per tool + its _test.go
+```
+
+## Commands
+
+Run from `src/` (or use the Makefile targets at the repo root, which `cd` into `src/` for you):
+
+```
+cd src
+go build ./...
+go vet ./...
+go test ./...
+go run ./cmd/mytoolkit serve --port 8080
+```
+
+Makefile (repo root): `make build`, `make test`, `make run`, `make lint`, `make check-tools`, `make docker-build`, `make helm-lint`, etc. Run `make help` for the full list.
+
+`make docker-push` interactively prompts for Docker Hub username/password-or-token/repository and pushes a multi-arch image. It requires a human at a terminal (hidden password prompt) and publishes to a real public registry — never invoke it non-interactively or on the user's behalf without explicit, in-the-moment confirmation.
+
+## Adding a new tool
+
+Follow the pattern of an existing simple tool (e.g. `base64` or `case-convert`):
+
+1. `src/internal/tools/<name>/<name>.go` — pure function `func Do(input []byte, opts Options) (string, error)`, returning `*apperr.Error` for known failure modes. Colocate `<name>_test.go`.
+2. `src/internal/registry/registry.go` — add a `Tool{Slug, Name, Emoji, Description}` entry.
+3. `src/internal/cli/<name>.go` — `init()` registers both the cobra subcommand (`newTextToolCommand`, unless the tool doesn't fit the text-in/text-out shape — see Password Generator/JWT/QR Code/Text Counter/JSON Tree for bespoke wiring) and the REST handler (`handlers.Wrap`) via `registerToolHandler`.
+4. `src/internal/web/templates/tools/<name>.html` — `{{define "content"}}` + `{{template "tool-panel" .}}`, plus an optional `{{define "tool-options"}}` block for extra form controls (`data-option name="..."` attributes are auto-collected into the REST request's `options` object by `tool-common.js`). If the tool's web page must never call the server (a hard product requirement, not a default), set `ClientSide: true` on its `registry.Tool` entry — this renders `data-client-side` on `.tool-panel`, which makes `tool-common.js` skip its fetch-based wiring so the page's own `{{define "extra-scripts"}}` inline script can own input → output conversion instead (see `json-toon` for the reference implementation).
+5. `docs/api/<name>.md`, `docs/cli/<name>.md`, `docs/testing/<name>.md`, `.skills/<name>/SKILL.md` — see any existing tool's docs for the expected shape. `docs/api/<name>.md` must include a `## Workflow` section with a Mermaid diagram of the request lifecycle (see any existing tool's doc for the pattern).
+6. Add the tool to `README.md`'s feature list and Documentation table.
+
+## Versioning
+
+The repo-root `VERSION` file is the single source of truth for the application version. `make build` embeds it into the binary via `-ldflags -X .../internal/version.Version=$(VERSION)` (exposed via `mytoolkit --version`/`-v`); `make docker-build`/`docker-buildx`/`docker-push` pass it as a Docker `--build-arg VERSION` (used both to tag the image and to embed the same ldflag inside the container build). Bump `VERSION` (and `CHANGELOG.md`) together when cutting a release — don't hardcode a version string anywhere else.
+
+## Conventions
+
+- `internal/tools/<name>` packages must never import `net/http`, `cobra`, or any other `internal/` package except `apperr`.
+- Error codes and HTTP status are defined once via `apperr.New(status, code, message)` — never construct ad hoc error strings in handlers.
+- Logs are structured JSON (zerolog) to stderr, always — never to stdout, since CLI tool output uses stdout.
+- Prefer the generic `handlers.Wrap` / `newTextToolCommand` helpers; only write bespoke REST/CLI wiring when a tool's request/response shape genuinely doesn't fit (documented per-tool in `.skills/<name>/SKILL.md`).
+- Every example in `docs/api|cli/<name>.md` must be copy-paste-verified against the running binary before being committed — don't hand-type expected output (including error messages, which are parser-dependent and easy to get subtly wrong). A prior pass shipped docs with a nonexistent request field, a stray unencoded-newline artifact, a hand-typed JSON format that didn't match `json.MarshalIndent`, and invented error message text — all found later by re-running the documented commands verbatim. Re-running every doc example against the real binary is exactly how those were caught; do this whenever you touch a tool's docs.
+- A tool may ship a client-side JS mirror under `internal/web/static/js/<name>.js` (instead of calling the REST API from its own web page) only when a no-network-call guarantee is an explicit product requirement — the pure `internal/tools/<name>` Go package is still mandatory and backs REST/CLI exactly as normal. Such a tool must: (1) state the dual-implementation trade-off explicitly in its `.skills/<name>/SKILL.md`, (2) keep both implementations tested against one shared fixture table (a Go `_test.go` file plus a documented headless-browser parity check — see `docs/testing/json-toon.md`), and (3) set `ClientSide: true` on its `registry.Tool` entry to opt into the `data-client-side` convention rather than hand-rolling page-specific wiring.

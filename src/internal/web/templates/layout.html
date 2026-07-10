@@ -1,0 +1,32 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · MyToolkit</title>
+  <script>
+    (function () {
+      var forced = new URLSearchParams(window.location.search).get('theme');
+      var t = forced === 'dark' || forced === 'light' ? forced : localStorage.getItem('theme');
+      if (!t) { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="topnav">
+    <a class="brand" href="/">🧰 MyToolkit</a>
+    <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light theme">🌓</button>
+  </header>
+  <main class="content">
+    {{template "content" .}}
+  </main>
+  <script src="/static/js/theme-toggle.js"></script>
+  <script src="/static/js/tool-common.js"></script>
+  {{block "extra-scripts" .}}{{end}}
+</body>
+</html>
+{{end}}

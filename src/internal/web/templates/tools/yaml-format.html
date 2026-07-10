@@ -1,0 +1,18 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}}</p>
+</section>
+{{template "tool-panel" .}}
+{{end}}
+
+{{define "tool-options"}}
+<div class="options-row">
+  <label>Indent
+    <select name="indent" data-option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+    </select>
+  </label>
+</div>
+{{end}}

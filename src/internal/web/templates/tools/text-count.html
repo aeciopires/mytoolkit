@@ -1,0 +1,42 @@
+{{define "content"}}
+<section class="hero-card">
+  <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
+  <p>{{.Tool.Description}}</p>
+</section>
+<div class="tool-panel" data-slug="text-count">
+  <div class="panel-col" style="grid-column: 1 / -1;">
+    <label for="tool-input">Text</label>
+    <textarea id="tool-input" placeholder="Paste or type here…"></textarea>
+  </div>
+  <div class="options-row" id="text-count-stats">
+    <span>Characters: <strong id="stat-characters">0</strong></span>
+    <span>Characters (no spaces): <strong id="stat-characters-no-spaces">0</strong></span>
+    <span>Words: <strong id="stat-words">0</strong></span>
+    <span>Lines: <strong id="stat-lines">0</strong></span>
+  </div>
+  <p class="error-banner" id="tool-error" hidden></p>
+</div>
+<script>
+  (function () {
+    var input = document.getElementById('tool-input');
+    var timer = null;
+    function run() {
+      fetch('/api/v1/tools/text-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: input.value })
+      }).then(function (r) { return r.json(); }).then(function (json) {
+        if (!json.success) return;
+        document.getElementById('stat-characters').textContent = json.data.characters;
+        document.getElementById('stat-characters-no-spaces').textContent = json.data.characters_no_spaces;
+        document.getElementById('stat-words').textContent = json.data.words;
+        document.getElementById('stat-lines').textContent = json.data.lines;
+      });
+    }
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(run, 300);
+    });
+  })();
+</script>
+{{end}}

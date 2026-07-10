@@ -1,0 +1,21 @@
+MyToolkit has been installed.
+
+1. Get the application URL:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "mytoolkit.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "mytoolkit.fullname" . }} 8080:{{ .Values.service.port }}
+  echo "Then open http://localhost:8080"
+{{- end }}
+
+2. Check application health:
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "mytoolkit.fullname" . }} -- /mytoolkit healthcheck
+
+3. Run the chart's test suite:
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}

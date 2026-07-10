@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mytoolkit.fullname" . }}
+  labels:
+    {{- include "mytoolkit.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mytoolkit.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.port | quote }}
+        prometheus.io/path: "/metrics"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "mytoolkit.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mytoolkit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "mytoolkit.fullname" . }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
