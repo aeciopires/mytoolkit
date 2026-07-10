@@ -11,8 +11,8 @@ Converts JSON into [TOON](https://github.com/toon-format/spec) (Token-Oriented O
 
 This is the only tool in the app with **two independent implementations of the same algorithm**:
 
-- `src/internal/tools/jsontoon/jsontoon.go` — Go, backs the REST endpoint (`handlers.Wrap`) and the CLI subcommand (`newTextToolCommand`). Standard for this app.
-- `src/internal/web/static/js/json-toon.js` — vanilla JS, backs **only** the web page. The web page's `data-client-side` attribute (see below) tells `tool-common.js` to skip its normal fetch-based wiring; the page's own inline `<script>` (in `json-toon.html`'s `{{define "extra-scripts"}}` block) calls `window.jsonToToon()` directly on every input/option change.
+- `app/internal/tools/jsontoon/jsontoon.go` — Go, backs the REST endpoint (`handlers.Wrap`) and the CLI subcommand (`newTextToolCommand`). Standard for this app.
+- `app/internal/web/static/js/json-toon.js` — vanilla JS, backs **only** the web page. The web page's `data-client-side` attribute (see below) tells `tool-common.js` to skip its normal fetch-based wiring; the page's own inline `<script>` (in `json-toon.html`'s `{{define "extra-scripts"}}` block) calls `window.jsonToToon()` directly on every input/option change.
 
 **Any change to the encoding rules (quoting, tabular detection, number formatting, delimiter/indent handling) must be made in both files**, then verified with the parity check in `docs/testing/json-toon.md` (loads `json-toon.js` in headless Chrome and diffs its output against the same fixture table used by `jsontoon_test.go`). There is no automated CI gate for this — it's a manual/scripted step you must run yourself; don't skip it.
 

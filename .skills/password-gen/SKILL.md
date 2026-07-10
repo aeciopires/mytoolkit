@@ -5,9 +5,9 @@ description: Implement or modify the Password Generator tool (internal/tools/pas
 
 # Password Generator
 
-`src/internal/tools/password/password.go`, `func Generate(opts Options) (string, error)`. Uses `crypto/rand` exclusively (never `math/rand`) via unbiased `rand.Int` sampling — this is a hard requirement, not a style preference, since output is security-sensitive.
+`app/internal/tools/password/password.go`, `func Generate(opts Options) (string, error)`. Uses `crypto/rand` exclusively (never `math/rand`) via unbiased `rand.Int` sampling — this is a hard requirement, not a style preference, since output is security-sensitive.
 
-`Options` has no `input`/text field — REST/CLI wiring is bespoke (`src/internal/cli/password.go`), not `handlers.Wrap`/`newTextToolCommand`, because those assume a text-transform shape.
+`Options` has no `input`/text field — REST/CLI wiring is bespoke (`app/internal/cli/password.go`), not `handlers.Wrap`/`newTextToolCommand`, because those assume a text-transform shape.
 
 Charset constants (`Lowercase`, `Uppercase`, `Numbers`, `Symbols`, `ConfusingChars`, `AmbiguousChars`) are package-level so CLI help/REST docs/web tooltips stay in sync. `ExcludeConfusing`/`ExcludeAmbiguous` filter the built pool *after* concatenating enabled classes — `AmbiguousChars` is a subset of `Symbols`, so `Symbols=true` + `ExcludeAmbiguous=true` leaves the safe subset `!#$%&*+-=?@^_`.
 

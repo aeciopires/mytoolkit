@@ -5,7 +5,7 @@ description: Implement or modify the URL Encode/Decode tool (internal/tools/urle
 
 # URL Encode/Decode
 
-`src/internal/tools/urlencode/urlencode.go`, `func Process(input []byte, opts Options) (string, error)`. Uses stdlib `net/url` only: `query` component → `QueryEscape`/`QueryUnescape` (spaces become `+`), `path` component → `PathEscape`/`PathUnescape` (spaces become `%20`), `full` → best-effort via `url.Parse`.
+`app/internal/tools/urlencode/urlencode.go`, `func Process(input []byte, opts Options) (string, error)`. Uses stdlib `net/url` only: `query` component → `QueryEscape`/`QueryUnescape` (spaces become `+`), `path` component → `PathEscape`/`PathUnescape` (spaces become `%20`), `full` → best-effort via `url.Parse`.
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 

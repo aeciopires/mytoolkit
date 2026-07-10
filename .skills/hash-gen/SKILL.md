@@ -5,7 +5,7 @@ description: Implement or modify the Hash Generator tool (internal/tools/hashgen
 
 # Hash Generator
 
-`src/internal/tools/hashgen/hashgen.go`, `func Generate(input []byte, opts Options) (string, error)`. Stdlib only (`crypto/md5`, `crypto/sha1`, `crypto/sha256`, `crypto/sha512`, `encoding/hex`). No `sha1024` — that string in early drafts of `README.md`/`TASK.md` was a typo; the four supported algorithms are md5/sha1/sha256/sha512.
+`app/internal/tools/hashgen/hashgen.go`, `func Generate(input []byte, opts Options) (string, error)`. Stdlib only (`crypto/md5`, `crypto/sha1`, `crypto/sha256`, `crypto/sha512`, `encoding/hex`). No `sha1024` — that string in early drafts of `README.md`/`TASK.md` was a typo; the four supported algorithms are md5/sha1/sha256/sha512.
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 

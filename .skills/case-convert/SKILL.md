@@ -5,7 +5,7 @@ description: Implement or modify the Case Converter tool (internal/tools/casecon
 
 # Case Converter
 
-`src/internal/tools/caseconvert/caseconvert.go`, `func Convert(input []byte, opts Options) (string, error)`.
+`app/internal/tools/caseconvert/caseconvert.go`, `func Convert(input []byte, opts Options) (string, error)`.
 
 `mixed` mode alternates case by **absolute character position** (including spaces/punctuation in the position count, though they don't themselves get cased) — this is what produces the exact `"MiXeD CaSe"` pattern from `"mixed case"`. `inverse` mode swaps each letter's own case independently of position, and is self-inverting (`inverse(inverse(x)) == x`). Both are deterministic — no randomness — which is what makes them reproducible in tests/REST/CLI.
 
