@@ -40,6 +40,16 @@ func newQRCodeCommand() *cobra.Command {
 	return cmd
 }
 
+// qrCodeHandler godoc
+// @Summary Generate a QR code image
+// @Description Generates a QR code PNG from text/URL/unicode content. The one deliberate exception to the app's shared JSON envelope: returns raw image/png bytes directly (so the response can be used as an <img src> or downloaded), not JSON.
+// @Tags tools
+// @Accept json
+// @Produce png
+// @Param request body object{input=string,options=object{size=int}} true "Text to encode and optional square size in pixels (default 256)"
+// @Success 200 {file} binary "PNG image"
+// @Failure 400 {object} ToolErrorResponse
+// @Router /api/v1/tools/qrcode [post]
 func qrCodeHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Input   string `json:"input"`

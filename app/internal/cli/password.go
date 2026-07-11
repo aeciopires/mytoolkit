@@ -43,6 +43,16 @@ func newPasswordGenCommand() *cobra.Command {
 	return cmd
 }
 
+// passwordGenHandler godoc
+// @Summary Generate a random password
+// @Description Generates a cryptographically random password (crypto/rand) from the requested character classes. Unlike other tools, this endpoint ignores the request body's "input" field entirely — only "options" is used.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{options=password.Options} true "Password options"
+// @Success 200 {object} ToolSuccessResponse
+// @Failure 400 {object} ToolErrorResponse "e.g. NO_CHARSET_SELECTED if every character class is disabled or empty after exclusions"
+// @Router /api/v1/tools/password-gen [post]
 func passwordGenHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {

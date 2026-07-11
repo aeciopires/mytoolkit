@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net/http"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -10,7 +12,21 @@ import (
 
 func init() {
 	rootCmd.AddCommand(newYAMLFormatCommand())
-	registerToolHandler("yaml-format", handlers.Wrap("yaml-format", yamlformat.Format))
+	registerToolHandler("yaml-format", yamlFormatHandler())
+}
+
+// yamlFormatHandler godoc
+// @Summary Reformat YAML with consistent indentation
+// @Description Reformats every document in a YAML stream ("---"-separated multi-document streams are fully supported). style=flow collapses collections to compact {}/[] notation (indent option is ignored); style=block (default) uses indented layout.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string,options=object{indent=int,style=string}} true "indent: spaces per level, block style only, default 2; style: block (default) or flow"
+// @Success 200 {object} ToolSuccessResponse
+// @Failure 400 {object} ToolErrorResponse "e.g. INVALID_YAML, INVALID_OPTION"
+// @Router /api/v1/tools/yaml-format [post]
+func yamlFormatHandler() http.HandlerFunc {
+	return handlers.Wrap("yaml-format", yamlformat.Format)
 }
 
 func newYAMLFormatCommand() *cobra.Command {

@@ -44,6 +44,16 @@ func newJSONTreeCommand() *cobra.Command {
 	return cmd
 }
 
+// jsonTreeHandler godoc
+// @Summary Parse JSON into a navigable tree
+// @Description Parses raw JSON text into a key-order-preserving tree structure. Error messages include the exact 1-indexed line/column of any syntax problem. Trailing content after a complete JSON value is rejected, not silently ignored.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string} true "Raw JSON to parse"
+// @Success 200 {object} object{success=bool,data=object{tree=jsontree.Node},meta=ToolMeta}
+// @Failure 400 {object} ToolErrorResponse "e.g. INVALID_JSON with a position suffix like (at line 4, column 1)"
+// @Router /api/v1/tools/json-tree [post]
 func jsonTreeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {

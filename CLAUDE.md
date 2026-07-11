@@ -25,19 +25,22 @@ Go/HTML/CSS/JS source lives under `app/` (its own Go module root — `app/go.mod
 
 ```
 app/
-  cmd/mytoolkit/main.go       entrypoint
+  cmd/mytoolkit/main.go       entrypoint; also carries swag's @title/@version/... general API annotations
+  docs/                       swaggo/swag-generated OpenAPI spec (docs.go, swagger.json, swagger.yaml) — generated, do not hand-edit; regenerate with `make swagger-gen`
   internal/
     apperr/                   shared error type + OneOf[T] validator
     textio/                   shared --in/--out read/write helpers
     config/                   flag > env > default resolution
     response/                 shared JSON success/error envelope (leaf package)
     registry/                 tool metadata: slug, name, description
-    cli/                      cobra commands; one file per tool, self-registers via init()
-    httpapi/                  chi router, health, generic REST handler wrapper
+    cli/                      cobra commands; one file per tool, self-registers via init(); also carries swag @Router annotations per tool handler
+    httpapi/                  chi router, health, generic REST handler wrapper, /swagger/* UI route
     metrics/                  Prometheus collectors + usage ranking
     web/                      html/template pages, embedded CSS/JS
     tools/<name>/             pure business logic, one package per tool + its _test.go
 ```
+
+Note: `app/docs/` (generated Swagger spec) is unrelated to the repo-root `docs/` (hand-written per-tool `api|cli|testing/<name>.md` reference docs) — same name, different purpose, don't confuse them.
 
 ## Commands
 
@@ -51,7 +54,7 @@ go test ./...
 go run ./cmd/mytoolkit serve --port 8080
 ```
 
-Makefile (repo root): `make build`, `make test`, `make run`, `make lint`, `make check-tools`, `make docker-build`, `make helm-lint`, etc. Run `make help` for the full list.
+Makefile (repo root): `make build`, `make test`, `make run`, `make lint`, `make check-tools`, `make docker-build`, `make helm-lint`, `make swagger-gen`, etc. Run `make help` for the full list.
 
 `make docker-push` interactively prompts for Docker Hub username/password-or-token/repository and pushes a multi-arch image. It requires a human at a terminal (hidden password prompt) and publishes to a real public registry — never invoke it non-interactively or on the user's behalf without explicit, in-the-moment confirmation.
 
@@ -65,6 +68,7 @@ Follow the pattern of an existing simple tool (e.g. `base64` or `case-convert`):
 4. `app/internal/web/templates/tools/<name>.html` — `{{define "content"}}` + `{{template "tool-panel" .}}`, plus an optional `{{define "tool-options"}}` block for extra form controls (`data-option name="..."` attributes are auto-collected into the REST request's `options` object by `tool-common.js`). If the tool's web page must never call the server (a hard product requirement, not a default), set `ClientSide: true` on its `registry.Tool` entry — this renders `data-client-side` on `.tool-panel`, which makes `tool-common.js` skip its fetch-based wiring so the page's own `{{define "extra-scripts"}}` inline script can own input → output conversion instead (see `json-toon` for the reference implementation).
 5. `docs/api/<name>.md`, `docs/cli/<name>.md`, `docs/testing/<name>.md`, `.skills/<name>/SKILL.md` — see any existing tool's docs for the expected shape. `docs/api/<name>.md` must include a `## Workflow` section with a Mermaid diagram of the request lifecycle (see any existing tool's doc for the pattern).
 6. Add the tool to `README.md`'s feature list and Documentation table.
+7. Add `swaggo/swag` annotations (`@Summary`/`@Description`/`@Tags tools`/`@Accept`/`@Produce`/`@Param`/`@Success`/`@Failure`/`@Router`) above the tool's REST handler function — if it's wired via the generic `handlers.Wrap` (no named handler function exists yet), add a small named wrapper (`func <name>Handler() http.HandlerFunc { return handlers.Wrap(...) }`) to carry the annotation; see `.skills/swagger/SKILL.md`. Then run `make swagger-gen` and commit the regenerated `app/docs/`.
 
 ## Web UI shell
 
@@ -80,7 +84,7 @@ M3 design tokens (spacing, state-layer opacities, shape radii) live in `theme.cs
 
 ## Versioning
 
-The repo-root `VERSION` file is the single source of truth for the application version. `make build` embeds it into the binary via `-ldflags -X .../internal/version.Version=$(VERSION)` (exposed via `mytoolkit --version`/`-v`); `make docker-build`/`docker-buildx`/`docker-push` pass it as a Docker `--build-arg VERSION` (used both to tag the image and to embed the same ldflag inside the container build). Bump `VERSION` (and `CHANGELOG.md`) together when cutting a release — don't hardcode a version string anywhere else.
+The repo-root `VERSION` file is the single source of truth for the application version. `make build` embeds it into the binary via `-ldflags -X .../internal/version.Version=$(VERSION)` (exposed via `mytoolkit --version`/`-v`); `make docker-build`/`docker-buildx`/`docker-push` pass it as a Docker `--build-arg VERSION` (used both to tag the image and to embed the same ldflag inside the container build); `make helm-docs` runs `helm-set-appversion` first, which `sed`-rewrites `helm/mytoolkit/Chart.yaml`'s `appVersion` field to match. Bump `VERSION` (and `CHANGELOG.md`) together when cutting a release — don't hardcode a version string anywhere else, including in `Chart.yaml` (`helm-set-appversion` will overwrite a hand-edited `appVersion` on the next `make helm-docs` anyway).
 
 ## Conventions
 
@@ -93,3 +97,4 @@ The repo-root `VERSION` file is the single source of truth for the application v
 - Any Go struct that gets `json.Marshal`ed for consumption by JS or an external client (e.g. `registry.Tool`) must have explicit lowercase `json:"..."` tags on every field. `registry.Tool` shipped without them for months — harmless while it was template-only, until the search bar started reading `t.slug`/`t.name` from the marshaled JSON and silently got `undefined` for every field (capitalized Go field names, no thrown error, just zero search results). Caught by an end-to-end browser test, not `go vet` or a unit test — see `internal/registry/registry_test.go`'s `TestToolJSONFieldsAreLowercase` for the regression test now guarding this.
 - Use a **switch** (`<label class="switch"><input type="checkbox" ...></label>`, see `base64`/`url-encode`'s "Decode") for a single, standalone on/off setting; use a plain checkbox (`.options-row input[type="checkbox"]`, no extra class, see Password Generator's charset toggles) when several independent options are presented together as a set. This follows M3's checkbox-vs-switch guidance (`https://m3.material.io/components/switch/overview` vs `.../checkbox/overview`) — don't default everything to one or the other.
 - New interactive UI (buttons, dialogs, lists, etc.) added anywhere in `internal/web` should be verified with a real browser (Playwright against the actual running binary, or at minimum a headless-Chrome screenshot), not just "the CSS looks right in the file" — two real bugs in this app's UI (a JSON-field-case mismatch breaking search, a missing favicon causing a console 404) were only caught this way, not by reading the source.
+- The REST API is documented at `/swagger/index.html` (swaggo/swag). `swag` resolves a cross-package type in an annotation (e.g. `@Success 200 {object} pkg.Type`) only if the annotated file actually imports `pkg` — this is why the shared response DTOs it points at (`ToolSuccessResponse`, `ToolErrorResponse`, `ToolMeta`) live in `internal/cli` (imported everywhere handlers are registered) rather than `internal/httpapi` (not imported by `internal/cli`). See `.skills/swagger/SKILL.md` before adding or changing annotations.

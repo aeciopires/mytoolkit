@@ -44,6 +44,16 @@ func newTextCountCommand() *cobra.Command {
 	return cmd
 }
 
+// textCountHandler godoc
+// @Summary Count characters, words, and lines
+// @Description Counts characters (Unicode-aware), characters excluding whitespace, words, and lines in the input text. Never errors — empty/whitespace input is valid and returns all-zero counts.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string} true "Text to count"
+// @Success 200 {object} object{success=bool,data=textcount.Counts,meta=ToolMeta}
+// @Failure 400 {object} ToolErrorResponse
+// @Router /api/v1/tools/text-count [post]
 func textCountHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {

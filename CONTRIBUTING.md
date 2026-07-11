@@ -46,8 +46,9 @@ make lint
 make test
 ```
 
-- If you touched the Helm chart, run `make helm-lint` and `make helm-docs` (regenerates `helm/mytoolkit/README.md` — never edit that file by hand).
+- If you touched the Helm chart, run `make helm-lint` and `make helm-docs` (regenerates `helm/mytoolkit/README.md` — never edit that file by hand; it also syncs `Chart.yaml`'s `appVersion` to the root `VERSION` file first, so don't hand-edit `appVersion` either).
 - If you touched a tool's behavior, re-run every example in its `docs/api/<tool>.md` and `docs/cli/<tool>.md` against the real binary and update the docs to match — don't hand-type expected output or error messages. Also check its `## Workflow` Mermaid diagram still matches the real request lifecycle.
+- If you touched a REST handler's request/response shape (or added a new tool), update its `swaggo/swag` annotations and run `make swagger-gen` (regenerates `app/docs/` — never edit those files by hand either). See `.skills/swagger/SKILL.md`.
 - Commit your changes on the newly created branch, preferably one commit per edited/created file.
 - Push the commits to the remote repository with the command:
 

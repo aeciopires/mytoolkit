@@ -9,6 +9,7 @@
     - [Web mode](#web-mode)
     - [CLI mode](#cli-mode)
   - [Documentation](#documentation)
+  - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Environment variables](#environment-variables)
   - [Testing](#testing)
   - [Docker](#docker)
@@ -254,6 +255,12 @@ The version comes from the repo-root [`VERSION`](VERSION) file — the single so
 
 See also: [Environment variables](docs/environment-variables.md), and one `.skills/<tool>/SKILL.md` per tool for implementation notes.
 
+## API Documentation (Swagger)
+
+Every REST endpoint is also documented interactively at **`/swagger/index.html`** (e.g. <http://localhost:8080/swagger/index.html> when running locally) — generated from code annotations via [swaggo/swag](https://github.com/swaggo/swag), covering all 15 `/api/v1/tools/<slug>` endpoints plus `GET /api/v1/tools`, `GET /api/v1/metrics/ranking`, `/healthz`, and `/readyz`. Each endpoint's page includes a live "Try it out" button that sends a real request to the running server. The raw spec is at `/swagger/doc.json`.
+
+If you change a tool's REST request/response shape, update its `@`-annotations (see `.skills/swagger/SKILL.md`) and run `make swagger-gen` to regenerate `app/docs/` before committing.
+
 ## Environment variables
 
 | Variable | CLI flag (`serve`) | Default | Description |
@@ -312,7 +319,9 @@ See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrap
 
 ## Makefile targets
 
-Run `make help` for the full, self-documenting list (build, check-tools, clean, compose-down, compose-up, coverage, deps-check, docker-build, docker-buildx, docker-push, docker-run, fmt, helm-docs, helm-install, helm-lint, helm-template, helm-test, helm-uninstall, help, kind-load, lint, run, test, test-verbose, vet).
+Run `make help` for the full, self-documenting list (build, check-tools, clean, compose-down, compose-up, coverage, deps-check, docker-build, docker-buildx, docker-push, docker-run, fmt, helm-docs, helm-install, helm-lint, helm-set-appversion, helm-template, helm-test, helm-uninstall, help, kind-load, lint, run, swagger-gen, test, test-verbose, vet).
+
+`make helm-docs` always runs `helm-set-appversion` first, syncing `helm/mytoolkit/Chart.yaml`'s `appVersion` field to the repo-root `VERSION` file before regenerating the chart README — so the chart's declared app version can never silently drift from what `mytoolkit --version` reports.
 
 ## Developer
 

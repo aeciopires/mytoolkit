@@ -1,0 +1,790 @@
+basePath: /
+definitions:
+  github_com_aeciopires_mytoolkit_internal_metrics.RankEntry:
+    properties:
+      count:
+        type: integer
+      rank:
+        type: integer
+      tool:
+        type: string
+    type: object
+  github_com_aeciopires_mytoolkit_internal_registry.Tool:
+    properties:
+      client_side:
+        description: |-
+          ClientSide marks tools whose web page converts entirely in the
+          browser (no REST call from the page) — see json-toon and
+          PLAN_ARCHITECTURE.md's "data-client-side" convention.
+        type: boolean
+      description:
+        type: string
+      emoji:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node'
+        type: array
+      key:
+        type: string
+      type:
+        type: string
+      value: {}
+    type: object
+  github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.DocumentResult:
+    properties:
+      api_version:
+        type: string
+      error:
+        type: string
+      index:
+        type: integer
+      kind:
+        type: string
+      name:
+        type: string
+      valid:
+        type: boolean
+    type: object
+  github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.Result:
+    properties:
+      documents:
+        items:
+          $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.DocumentResult'
+        type: array
+      valid:
+        type: boolean
+    type: object
+  github_com_aeciopires_mytoolkit_internal_tools_password.Options:
+    properties:
+      exclude_ambiguous:
+        type: boolean
+      exclude_confusing:
+        type: boolean
+      length:
+        type: integer
+      lowercase:
+        type: boolean
+      numbers:
+        type: boolean
+      symbols:
+        type: boolean
+      uppercase:
+        type: boolean
+    type: object
+  github_com_aeciopires_mytoolkit_internal_tools_textcount.Counts:
+    properties:
+      characters:
+        type: integer
+      characters_no_spaces:
+        type: integer
+      lines:
+        type: integer
+      words:
+        type: integer
+    type: object
+  internal_cli.ToolErrorBody:
+    properties:
+      code:
+        example: INVALID_OPTIONS
+        type: string
+      message:
+        example: invalid options object
+        type: string
+    type: object
+  internal_cli.ToolErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_cli.ToolErrorBody'
+      success:
+        example: false
+        type: boolean
+    type: object
+  internal_cli.ToolMeta:
+    properties:
+      duration_ms:
+        example: 0.08
+        type: number
+      tool:
+        example: base64
+        type: string
+    type: object
+  internal_cli.ToolSuccessResponse:
+    properties:
+      data:
+        additionalProperties: {}
+        type: object
+      meta:
+        $ref: '#/definitions/internal_cli.ToolMeta'
+      success:
+        example: true
+        type: boolean
+    type: object
+info:
+  contact:
+    name: Aecio Pires
+    url: https://github.com/aeciopires
+  description: Developer utilities (JSON/YAML formatting and conversion, JWT, hashing,
+    encoding, password generation, QR codes, and more) exposed as a REST API. Every
+    tool also has a CLI subcommand and a web UI backed by this same API — see the
+    project README for the full picture.
+  license:
+    name: MIT
+    url: https://github.com/aeciopires/mytoolkit/blob/main/LICENSE
+  title: MyToolkit REST API
+  version: "1.0"
+paths:
+  /api/v1/metrics/ranking:
+    get:
+      description: Returns every tool that has had at least one successful REST/web
+        invocation since the process started, ranked by usage count descending. In-memory
+        only — resets on restart; does not reflect CLI usage. Backed by the same counter
+        as the mytoolkit_tool_usage_total Prometheus metric.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              ranking:
+                items:
+                  $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_metrics.RankEntry'
+                type: array
+            type: object
+      summary: Tool usage ranking
+      tags:
+      - system
+  /api/v1/tools:
+    get:
+      description: Returns metadata (slug, name, emoji, description, client_side)
+        for every tool — the same data backing the web UI's navigation drawer, search
+        bar, and homepage grid.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              tools:
+                items:
+                  $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_registry.Tool'
+                type: array
+            type: object
+      summary: List all tools
+      tags:
+      - system
+  /api/v1/tools/base64:
+    post:
+      consumes:
+      - application/json
+      description: Encodes or decodes data using Base64 (standard or URL-safe alphabet),
+        with optional padding control.
+      parameters:
+      - description: 'variant: standard, url'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                decode:
+                  type: boolean
+                padding:
+                  type: boolean
+                variant:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Encode or decode Base64
+      tags:
+      - tools
+  /api/v1/tools/case-convert:
+    post:
+      consumes:
+      - application/json
+      description: Converts text between Sentence case, UPPER CASE, lower case, Title
+        Case, MiXeD CaSe, and iNvErSe CaSe.
+      parameters:
+      - description: 'mode: sentence, upper, lower, title, mixed, inverse'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                mode:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Convert text case
+      tags:
+      - tools
+  /api/v1/tools/hash-gen:
+    post:
+      consumes:
+      - application/json
+      description: Generates a hex-encoded hash digest of the input text using MD5,
+        SHA-1, SHA-256, or SHA-512.
+      parameters:
+      - description: 'algorithm: md5, sha1, sha256 (default), sha512'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                algorithm:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Generate a hash digest
+      tags:
+      - tools
+  /api/v1/tools/json-format:
+    post:
+      consumes:
+      - application/json
+      description: 'Formats a JSON document: pretty-print with a configurable indent,
+        or minify to a single compact line. Note: the web page''s Validate/Beautify/Minify
+        buttons run entirely client-side via the browser''s native JSON.parse()/JSON.stringify()
+        and never call this endpoint — it exists for REST/CLI/scripted use.'
+      parameters:
+      - description: 'mode: pretty (default) or minify; indent: spaces per level,
+          pretty mode only, default 2'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                indent:
+                  type: integer
+                mode:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Pretty-print or minify JSON
+      tags:
+      - tools
+  /api/v1/tools/json-to-yaml:
+    post:
+      consumes:
+      - application/json
+      description: Converts a JSON document to YAML using sigs.k8s.io/yaml (the same
+        library Kubernetes uses to render its typed API objects as YAML). Input is
+        validated as strict JSON before conversion.
+      parameters:
+      - description: JSON document
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: e.g. INVALID_JSON
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Convert JSON to YAML
+      tags:
+      - tools
+  /api/v1/tools/json-toon:
+    post:
+      consumes:
+      - application/json
+      description: Converts JSON into TOON (Token-Oriented Object Notation) to reduce
+        LLM token usage. This REST endpoint and the CLI are full Go implementations;
+        the web page instead converts entirely client-side in JavaScript (no data
+        sent to the server) — see docs/api/json-toon.md.
+      parameters:
+      - description: 'delimiter: comma (default), tab, pipe; indent_size: default
+          2'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                delimiter:
+                  type: string
+                indent_size:
+                  type: integer
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Convert JSON to TOON
+      tags:
+      - tools
+  /api/v1/tools/json-tree:
+    post:
+      consumes:
+      - application/json
+      description: Parses raw JSON text into a key-order-preserving tree structure.
+        Error messages include the exact 1-indexed line/column of any syntax problem.
+        Trailing content after a complete JSON value is rejected, not silently ignored.
+      parameters:
+      - description: Raw JSON to parse
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              data:
+                properties:
+                  tree:
+                    $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node'
+                type: object
+              meta:
+                $ref: '#/definitions/internal_cli.ToolMeta'
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: e.g. INVALID_JSON with a position suffix like (at line 4, column
+            1)
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Parse JSON into a navigable tree
+      tags:
+      - tools
+  /api/v1/tools/jwt:
+    post:
+      consumes:
+      - application/json
+      description: 'Decode mode (default): parses a token''s header/claims without
+        requiring a key, for inspection; supplying "secret" (HMAC) or "key" (PEM,
+        other algorithms) additionally attempts verification and sets "valid" in the
+        response. Encode mode ("options.mode":"encode"): signs "input" (a JSON object
+        of claims) into a new token using "options.algorithm" (default HS256) and
+        "options.secret" (HMAC) or "options.key" (PEM private key, all other algorithms).'
+      parameters:
+      - description: Token to decode (mode=decode, default) or claims JSON to encode
+          (mode=encode)
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                algorithm:
+                  type: string
+                key:
+                  type: string
+                mode:
+                  type: string
+                secret:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: e.g. INVALID_TOKEN, UNSUPPORTED_ALGORITHM, INVALID_KEY, EMPTY_CLAIMS
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Decode or encode a JWT
+      tags:
+      - tools
+  /api/v1/tools/k8s-validate:
+    post:
+      consumes:
+      - application/json
+      description: 'Validates a YAML document (or a "---"-separated multi-document
+        stream) against the two fields every Kubernetes API object requires: non-empty
+        apiVersion and kind, plus an object-shaped metadata if present. Does not validate
+        against any specific resource''s full schema. HTTP 200 with "data.valid":false
+        means the manifests parsed but aren''t valid; only a hard YAML syntax error
+        returns a non-2xx status.'
+      parameters:
+      - description: YAML document or multi-document stream
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              data:
+                $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.Result'
+              meta:
+                $ref: '#/definitions/internal_cli.ToolMeta'
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: e.g. INVALID_YAML (syntax error), NO_DOCUMENTS
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Validate Kubernetes-shaped YAML
+      tags:
+      - tools
+  /api/v1/tools/password-gen:
+    post:
+      consumes:
+      - application/json
+      description: Generates a cryptographically random password (crypto/rand) from
+        the requested character classes. Unlike other tools, this endpoint ignores
+        the request body's "input" field entirely — only "options" is used.
+      parameters:
+      - description: Password options
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            options:
+              $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_password.Options'
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: e.g. NO_CHARSET_SELECTED if every character class is disabled
+            or empty after exclusions
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Generate a random password
+      tags:
+      - tools
+  /api/v1/tools/qrcode:
+    post:
+      consumes:
+      - application/json
+      description: 'Generates a QR code PNG from text/URL/unicode content. The one
+        deliberate exception to the app''s shared JSON envelope: returns raw image/png
+        bytes directly (so the response can be used as an <img src> or downloaded),
+        not JSON.'
+      parameters:
+      - description: Text to encode and optional square size in pixels (default 256)
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                size:
+                  type: integer
+              type: object
+          type: object
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: PNG image
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Generate a QR code image
+      tags:
+      - tools
+  /api/v1/tools/text-count:
+    post:
+      consumes:
+      - application/json
+      description: Counts characters (Unicode-aware), characters excluding whitespace,
+        words, and lines in the input text. Never errors — empty/whitespace input
+        is valid and returns all-zero counts.
+      parameters:
+      - description: Text to count
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              data:
+                $ref: '#/definitions/github_com_aeciopires_mytoolkit_internal_tools_textcount.Counts'
+              meta:
+                $ref: '#/definitions/internal_cli.ToolMeta'
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Count characters, words, and lines
+      tags:
+      - tools
+  /api/v1/tools/url-encode:
+    post:
+      consumes:
+      - application/json
+      description: Encodes or decodes text using URL percent-encoding for the query,
+        path, or a full-URL component.
+      parameters:
+      - description: 'component: query (default), path, full'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                component:
+                  type: string
+                decode:
+                  type: boolean
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Encode or decode a URL component
+      tags:
+      - tools
+  /api/v1/tools/yaml-format:
+    post:
+      consumes:
+      - application/json
+      description: Reformats every document in a YAML stream ("---"-separated multi-document
+        streams are fully supported). style=flow collapses collections to compact
+        {}/[] notation (indent option is ignored); style=block (default) uses indented
+        layout.
+      parameters:
+      - description: 'indent: spaces per level, block style only, default 2; style:
+          block (default) or flow'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                indent:
+                  type: integer
+                style:
+                  type: string
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: e.g. INVALID_YAML, INVALID_OPTION
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Reformat YAML with consistent indentation
+      tags:
+      - tools
+  /api/v1/tools/yaml-to-json:
+    post:
+      consumes:
+      - application/json
+      description: Converts a YAML document to pretty-printed JSON using sigs.k8s.io/yaml.YAMLToJSONStrict
+        — the same library kubectl/client-go/the API server use, and strict about
+        rejecting duplicate mapping keys. Only the first document of a multi-document
+        stream is converted.
+      parameters:
+      - description: 'indent: spaces per level, default 2'
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            input:
+              type: string
+            options:
+              properties:
+                indent:
+                  type: integer
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_cli.ToolSuccessResponse'
+        "400":
+          description: e.g. INVALID_YAML
+          schema:
+            $ref: '#/definitions/internal_cli.ToolErrorResponse'
+      summary: Convert YAML to JSON
+      tags:
+      - tools
+  /healthz:
+    get:
+      description: Always returns 200 while the process is up. Used by Docker/Kubernetes
+        liveness checks; excluded from request metrics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{\"status\": \"ok\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - system
+  /readyz:
+    get:
+      description: Always returns 200 once the process has started (no external dependencies
+        to wait on). Used by Kubernetes readiness checks; excluded from request metrics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{\"status\": \"ready\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness probe
+      tags:
+      - system
+schemes:
+- http
+- https
+swagger: "2.0"

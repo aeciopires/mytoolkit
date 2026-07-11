@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net/http"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -10,7 +12,21 @@ import (
 
 func init() {
 	rootCmd.AddCommand(newURLEncodeCommand())
-	registerToolHandler("url-encode", handlers.Wrap("url-encode", urlencode.Process))
+	registerToolHandler("url-encode", urlEncodeHandler())
+}
+
+// urlEncodeHandler godoc
+// @Summary Encode or decode a URL component
+// @Description Encodes or decodes text using URL percent-encoding for the query, path, or a full-URL component.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string,options=object{decode=bool,component=string}} true "component: query (default), path, full"
+// @Success 200 {object} ToolSuccessResponse
+// @Failure 400 {object} ToolErrorResponse
+// @Router /api/v1/tools/url-encode [post]
+func urlEncodeHandler() http.HandlerFunc {
+	return handlers.Wrap("url-encode", urlencode.Process)
 }
 
 func newURLEncodeCommand() *cobra.Command {

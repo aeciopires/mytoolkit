@@ -85,6 +85,16 @@ func readKeyFlag(keyPath string) (string, error) {
 	return string(raw), nil
 }
 
+// jwtHandler godoc
+// @Summary Decode or encode a JWT
+// @Description Decode mode (default): parses a token's header/claims without requiring a key, for inspection; supplying "secret" (HMAC) or "key" (PEM, other algorithms) additionally attempts verification and sets "valid" in the response. Encode mode ("options.mode":"encode"): signs "input" (a JSON object of claims) into a new token using "options.algorithm" (default HS256) and "options.secret" (HMAC) or "options.key" (PEM private key, all other algorithms).
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string,options=object{mode=string,secret=string,key=string,algorithm=string}} true "Token to decode (mode=decode, default) or claims JSON to encode (mode=encode)"
+// @Success 200 {object} ToolSuccessResponse
+// @Failure 400 {object} ToolErrorResponse "e.g. INVALID_TOKEN, UNSUPPORTED_ALGORITHM, INVALID_KEY, EMPTY_CLAIMS"
+// @Router /api/v1/tools/jwt [post]
 func jwtHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {

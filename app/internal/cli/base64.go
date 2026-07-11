@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net/http"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -10,7 +12,21 @@ import (
 
 func init() {
 	rootCmd.AddCommand(newBase64Command())
-	registerToolHandler("base64", handlers.Wrap("base64", base64enc.Process))
+	registerToolHandler("base64", base64Handler())
+}
+
+// base64Handler godoc
+// @Summary Encode or decode Base64
+// @Description Encodes or decodes data using Base64 (standard or URL-safe alphabet), with optional padding control.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string,options=object{decode=bool,variant=string,padding=bool}} true "variant: standard, url"
+// @Success 200 {object} ToolSuccessResponse
+// @Failure 400 {object} ToolErrorResponse
+// @Router /api/v1/tools/base64 [post]
+func base64Handler() http.HandlerFunc {
+	return handlers.Wrap("base64", base64enc.Process)
 }
 
 func newBase64Command() *cobra.Command {

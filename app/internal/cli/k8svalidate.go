@@ -83,6 +83,16 @@ func formatReport(result k8svalidate.Result) string {
 	return b.String()
 }
 
+// k8sValidateHandler godoc
+// @Summary Validate Kubernetes-shaped YAML
+// @Description Validates a YAML document (or a "---"-separated multi-document stream) against the two fields every Kubernetes API object requires: non-empty apiVersion and kind, plus an object-shaped metadata if present. Does not validate against any specific resource's full schema. HTTP 200 with "data.valid":false means the manifests parsed but aren't valid; only a hard YAML syntax error returns a non-2xx status.
+// @Tags tools
+// @Accept json
+// @Produce json
+// @Param request body object{input=string} true "YAML document or multi-document stream"
+// @Success 200 {object} object{success=bool,data=k8svalidate.Result,meta=ToolMeta}
+// @Failure 400 {object} ToolErrorResponse "e.g. INVALID_YAML (syntax error), NO_DOCUMENTS"
+// @Router /api/v1/tools/k8s-validate [post]
 func k8sValidateHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {

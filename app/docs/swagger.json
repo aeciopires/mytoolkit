@@ -1,0 +1,1134 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Developer utilities (JSON/YAML formatting and conversion, JWT, hashing, encoding, password generation, QR codes, and more) exposed as a REST API. Every tool also has a CLI subcommand and a web UI backed by this same API — see the project README for the full picture.",
+        "title": "MyToolkit REST API",
+        "contact": {
+            "name": "Aecio Pires",
+            "url": "https://github.com/aeciopires"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://github.com/aeciopires/mytoolkit/blob/main/LICENSE"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/v1/metrics/ranking": {
+            "get": {
+                "description": "Returns every tool that has had at least one successful REST/web invocation since the process started, ranked by usage count descending. In-memory only — resets on restart; does not reflect CLI usage. Backed by the same counter as the mytoolkit_tool_usage_total Prometheus metric.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Tool usage ranking",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "ranking": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_metrics.RankEntry"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools": {
+            "get": {
+                "description": "Returns metadata (slug, name, emoji, description, client_side) for every tool — the same data backing the web UI's navigation drawer, search bar, and homepage grid.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "List all tools",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "tools": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_registry.Tool"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/base64": {
+            "post": {
+                "description": "Encodes or decodes data using Base64 (standard or URL-safe alphabet), with optional padding control.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Encode or decode Base64",
+                "parameters": [
+                    {
+                        "description": "variant: standard, url",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "decode": {
+                                            "type": "boolean"
+                                        },
+                                        "padding": {
+                                            "type": "boolean"
+                                        },
+                                        "variant": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/case-convert": {
+            "post": {
+                "description": "Converts text between Sentence case, UPPER CASE, lower case, Title Case, MiXeD CaSe, and iNvErSe CaSe.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Convert text case",
+                "parameters": [
+                    {
+                        "description": "mode: sentence, upper, lower, title, mixed, inverse",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "mode": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/hash-gen": {
+            "post": {
+                "description": "Generates a hex-encoded hash digest of the input text using MD5, SHA-1, SHA-256, or SHA-512.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Generate a hash digest",
+                "parameters": [
+                    {
+                        "description": "algorithm: md5, sha1, sha256 (default), sha512",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "algorithm": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/json-format": {
+            "post": {
+                "description": "Formats a JSON document: pretty-print with a configurable indent, or minify to a single compact line. Note: the web page's Validate/Beautify/Minify buttons run entirely client-side via the browser's native JSON.parse()/JSON.stringify() and never call this endpoint — it exists for REST/CLI/scripted use.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Pretty-print or minify JSON",
+                "parameters": [
+                    {
+                        "description": "mode: pretty (default) or minify; indent: spaces per level, pretty mode only, default 2",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "indent": {
+                                            "type": "integer"
+                                        },
+                                        "mode": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/json-to-yaml": {
+            "post": {
+                "description": "Converts a JSON document to YAML using sigs.k8s.io/yaml (the same library Kubernetes uses to render its typed API objects as YAML). Input is validated as strict JSON before conversion.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Convert JSON to YAML",
+                "parameters": [
+                    {
+                        "description": "JSON document",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_JSON",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/json-toon": {
+            "post": {
+                "description": "Converts JSON into TOON (Token-Oriented Object Notation) to reduce LLM token usage. This REST endpoint and the CLI are full Go implementations; the web page instead converts entirely client-side in JavaScript (no data sent to the server) — see docs/api/json-toon.md.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Convert JSON to TOON",
+                "parameters": [
+                    {
+                        "description": "delimiter: comma (default), tab, pipe; indent_size: default 2",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "delimiter": {
+                                            "type": "string"
+                                        },
+                                        "indent_size": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/json-tree": {
+            "post": {
+                "description": "Parses raw JSON text into a key-order-preserving tree structure. Error messages include the exact 1-indexed line/column of any syntax problem. Trailing content after a complete JSON value is rejected, not silently ignored.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Parse JSON into a navigable tree",
+                "parameters": [
+                    {
+                        "description": "Raw JSON to parse",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tree": {
+                                            "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node"
+                                        }
+                                    }
+                                },
+                                "meta": {
+                                    "$ref": "#/definitions/internal_cli.ToolMeta"
+                                },
+                                "success": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_JSON with a position suffix like (at line 4, column 1)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/jwt": {
+            "post": {
+                "description": "Decode mode (default): parses a token's header/claims without requiring a key, for inspection; supplying \"secret\" (HMAC) or \"key\" (PEM, other algorithms) additionally attempts verification and sets \"valid\" in the response. Encode mode (\"options.mode\":\"encode\"): signs \"input\" (a JSON object of claims) into a new token using \"options.algorithm\" (default HS256) and \"options.secret\" (HMAC) or \"options.key\" (PEM private key, all other algorithms).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Decode or encode a JWT",
+                "parameters": [
+                    {
+                        "description": "Token to decode (mode=decode, default) or claims JSON to encode (mode=encode)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "algorithm": {
+                                            "type": "string"
+                                        },
+                                        "key": {
+                                            "type": "string"
+                                        },
+                                        "mode": {
+                                            "type": "string"
+                                        },
+                                        "secret": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_TOKEN, UNSUPPORTED_ALGORITHM, INVALID_KEY, EMPTY_CLAIMS",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/k8s-validate": {
+            "post": {
+                "description": "Validates a YAML document (or a \"---\"-separated multi-document stream) against the two fields every Kubernetes API object requires: non-empty apiVersion and kind, plus an object-shaped metadata if present. Does not validate against any specific resource's full schema. HTTP 200 with \"data.valid\":false means the manifests parsed but aren't valid; only a hard YAML syntax error returns a non-2xx status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Validate Kubernetes-shaped YAML",
+                "parameters": [
+                    {
+                        "description": "YAML document or multi-document stream",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.Result"
+                                },
+                                "meta": {
+                                    "$ref": "#/definitions/internal_cli.ToolMeta"
+                                },
+                                "success": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_YAML (syntax error), NO_DOCUMENTS",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/password-gen": {
+            "post": {
+                "description": "Generates a cryptographically random password (crypto/rand) from the requested character classes. Unlike other tools, this endpoint ignores the request body's \"input\" field entirely — only \"options\" is used.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Generate a random password",
+                "parameters": [
+                    {
+                        "description": "Password options",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "options": {
+                                    "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_password.Options"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. NO_CHARSET_SELECTED if every character class is disabled or empty after exclusions",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/qrcode": {
+            "post": {
+                "description": "Generates a QR code PNG from text/URL/unicode content. The one deliberate exception to the app's shared JSON envelope: returns raw image/png bytes directly (so the response can be used as an \u003cimg src\u003e or downloaded), not JSON.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "image/png"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Generate a QR code image",
+                "parameters": [
+                    {
+                        "description": "Text to encode and optional square size in pixels (default 256)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "size": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PNG image",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/text-count": {
+            "post": {
+                "description": "Counts characters (Unicode-aware), characters excluding whitespace, words, and lines in the input text. Never errors — empty/whitespace input is valid and returns all-zero counts.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Count characters, words, and lines",
+                "parameters": [
+                    {
+                        "description": "Text to count",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_textcount.Counts"
+                                },
+                                "meta": {
+                                    "$ref": "#/definitions/internal_cli.ToolMeta"
+                                },
+                                "success": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/url-encode": {
+            "post": {
+                "description": "Encodes or decodes text using URL percent-encoding for the query, path, or a full-URL component.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Encode or decode a URL component",
+                "parameters": [
+                    {
+                        "description": "component: query (default), path, full",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "component": {
+                                            "type": "string"
+                                        },
+                                        "decode": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/yaml-format": {
+            "post": {
+                "description": "Reformats every document in a YAML stream (\"---\"-separated multi-document streams are fully supported). style=flow collapses collections to compact {}/[] notation (indent option is ignored); style=block (default) uses indented layout.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Reformat YAML with consistent indentation",
+                "parameters": [
+                    {
+                        "description": "indent: spaces per level, block style only, default 2; style: block (default) or flow",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "indent": {
+                                            "type": "integer"
+                                        },
+                                        "style": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_YAML, INVALID_OPTION",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tools/yaml-to-json": {
+            "post": {
+                "description": "Converts a YAML document to pretty-printed JSON using sigs.k8s.io/yaml.YAMLToJSONStrict — the same library kubectl/client-go/the API server use, and strict about rejecting duplicate mapping keys. Only the first document of a multi-document stream is converted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Convert YAML to JSON",
+                "parameters": [
+                    {
+                        "description": "indent: spaces per level, default 2",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string"
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "properties": {
+                                        "indent": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolSuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "e.g. INVALID_YAML",
+                        "schema": {
+                            "$ref": "#/definitions/internal_cli.ToolErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "description": "Always returns 200 while the process is up. Used by Docker/Kubernetes liveness checks; excluded from request metrics.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "{\\\"status\\\": \\\"ok\\\"}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/readyz": {
+            "get": {
+                "description": "Always returns 200 once the process has started (no external dependencies to wait on). Used by Kubernetes readiness checks; excluded from request metrics.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "{\\\"status\\\": \\\"ready\\\"}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_aeciopires_mytoolkit_internal_metrics.RankEntry": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "tool": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_registry.Tool": {
+            "type": "object",
+            "properties": {
+                "client_side": {
+                    "description": "ClientSide marks tools whose web page converts entirely in the\nbrowser (no REST call from the page) — see json-toon and\nPLAN_ARCHITECTURE.md's \"data-client-side\" convention.",
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "emoji": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_jsontree.Node"
+                    }
+                },
+                "key": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.DocumentResult": {
+            "type": "object",
+            "properties": {
+                "api_version": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.Result": {
+            "type": "object",
+            "properties": {
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_tools_k8svalidate.DocumentResult"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_tools_password.Options": {
+            "type": "object",
+            "properties": {
+                "exclude_ambiguous": {
+                    "type": "boolean"
+                },
+                "exclude_confusing": {
+                    "type": "boolean"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "lowercase": {
+                    "type": "boolean"
+                },
+                "numbers": {
+                    "type": "boolean"
+                },
+                "symbols": {
+                    "type": "boolean"
+                },
+                "uppercase": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_aeciopires_mytoolkit_internal_tools_textcount.Counts": {
+            "type": "object",
+            "properties": {
+                "characters": {
+                    "type": "integer"
+                },
+                "characters_no_spaces": {
+                    "type": "integer"
+                },
+                "lines": {
+                    "type": "integer"
+                },
+                "words": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_cli.ToolErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "INVALID_OPTIONS"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "invalid options object"
+                }
+            }
+        },
+        "internal_cli.ToolErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_cli.ToolErrorBody"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "internal_cli.ToolMeta": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "number",
+                    "example": 0.08
+                },
+                "tool": {
+                    "type": "string",
+                    "example": "base64"
+                }
+            }
+        },
+        "internal_cli.ToolSuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "meta": {
+                    "$ref": "#/definitions/internal_cli.ToolMeta"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        }
+    }
+}

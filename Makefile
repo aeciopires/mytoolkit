@@ -10,6 +10,7 @@ SRC            := app
 BIN_DIR        := bin
 LDFLAGS        := -X github.com/aeciopires/mytoolkit/internal/version.Version=$(VERSION)
 HOST_PORT      := 8080
+CHART_DIR      := helm/$(APP_NAME)
 
 REQUIRED_TOOLS := go git docker helm kubectl kind golangci-lint helm-docs
 
@@ -114,9 +115,18 @@ helm-lint: ## Lint the Helm chart
 helm-template: ## Render the Helm chart locally
 	helm template $(APP_NAME) helm/$(APP_NAME) --set ingress.enabled=true --set autoscaling.enabled=true
 
+.PHONY: helm-set-appversion
+helm-set-appversion: ## Sync $(CHART_DIR)/Chart.yaml's appVersion with the root VERSION file
+	sed -i.bak -E 's/^appVersion: .*/appVersion: "$(VERSION)"/' $(CHART_DIR)/Chart.yaml
+	rm -f $(CHART_DIR)/Chart.yaml.bak
+
 .PHONY: helm-docs
-helm-docs: ## Regenerate helm/mytoolkit/README.md from README.md.gotmpl + values.yaml comments
+helm-docs: helm-set-appversion ## Sync Chart.yaml's appVersion with VERSION, then regenerate helm/mytoolkit/README.md from README.md.gotmpl + values.yaml comments
 	helm-docs --chart-search-root=helm
+
+.PHONY: swagger-gen
+swagger-gen: ## Regenerate $(SRC)/docs (Swagger/OpenAPI spec) from @-annotations — run after touching any @Router/@Summary/etc. comment
+	cd $(SRC) && go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/mytoolkit/main.go -o docs --parseDependency --parseInternal
 
 .PHONY: kind-load
 kind-load: ## Load the local Docker image into the kind-multinodes cluster
