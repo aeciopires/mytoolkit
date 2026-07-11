@@ -38,13 +38,11 @@ func Generate(opts Options) (string, error) {
 
 	classes := buildClasses(opts)
 	pool := ""
-	seeds := make([]byte, 0, len(classes))
 	for _, c := range classes {
 		if c == "" {
 			continue
 		}
 		pool += c
-		seeds = append(seeds, c[0])
 	}
 	if pool == "" {
 		return "", apperr.New(400, "NO_CHARSET_SELECTED", "at least one character class must be enabled and non-empty after exclusions")

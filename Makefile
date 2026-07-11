@@ -9,6 +9,7 @@ KUBE_CONTEXT   := kind-$(KIND_CLUSTER)
 SRC            := app
 BIN_DIR        := bin
 LDFLAGS        := -X github.com/aeciopires/mytoolkit/internal/version.Version=$(VERSION)
+HOST_PORT      := 8080
 
 REQUIRED_TOOLS := go git docker helm kubectl kind golangci-lint helm-docs
 
@@ -85,8 +86,8 @@ docker-buildx: ## Build (and validate) a multi-arch image for linux/amd64 + linu
 	docker buildx build --platform $(PLATFORMS) --build-arg VERSION=$(VERSION) -t $(IMAGE):$(TAG) .
 
 .PHONY: docker-run
-docker-run: ## Run the local Docker image on :8080
-	docker run --rm -p 8080:8080 $(IMAGE):$(TAG)
+docker-run: ## Run the local Docker image on $(HOST_PORT)
+	docker run --rm -p $(HOST_PORT):8080 $(IMAGE):$(TAG)
 
 .PHONY: docker-push
 docker-push: ## Prompt for Docker Hub credentials and push a multi-arch (amd64+arm64) image tagged $(VERSION)

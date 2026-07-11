@@ -1,0 +1,4 @@
+{{ range .Values.extraManifests }}
+---
+{{ include "mytoolkit.tools.render" (dict "value" . "context" $) }}
+{{ end }}

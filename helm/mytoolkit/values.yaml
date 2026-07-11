@@ -109,5 +109,54 @@ metrics:
     # -- Extra labels on the ServiceMonitor (e.g. to match a Prometheus release label selector)
     labels: {}
 
+# -- Update strategy configurations
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 6
+    maxUnavailable: 0
+
+# -- Health check on creation pod
+readinessProbe:
+  # -- Path of health check of application
+  path: /readyz
+  # -- Number of seconds after the container has started before readiness
+  initialDelaySeconds: 10
+  # -- Specifies that the kubelet should perform a liveness probe every N seconds
+  periodSeconds: 10
+  # -- Number of seconds after which the probe times out
+  timeoutSeconds: 5
+  # -- Minimum consecutive successes for the probe to be considered successful after having failed
+  successThreshold: 1
+  # -- When a probe fails, Kubernetes will try failureThreshold times before giving up.
+  # Giving up in case of liveness probe means restarting the container.
+  # In case of readiness probe the Pod will be marked Unready
+  failureThreshold: 3
+
+# -- Health check continuously
+livenessProbe:
+  # -- Path of health check of application
+  path: /healthz
+  # -- Number of seconds after the container has started before liveness
+  initialDelaySeconds: 10
+  # -- Specifies that the kubelet should perform a liveness probe every N seconds
+  periodSeconds: 10
+  # -- Number of seconds after which the probe times out
+  timeoutSeconds: 5
+  # -- Minimum consecutive successes for the probe to be considered successful after having failed
+  successThreshold: 1
+  # -- When a probe fails, Kubernetes will try failureThreshold times before giving up.
+  # Giving up in case of liveness probe means restarting the container.
+  # In case of readiness probe the Pod will be marked Unready
+  failureThreshold: 3
+
 # -- Extra environment variables appended verbatim (list of name/value or valueFrom entries)
 extraEnv: []
+
+# -- Extra arbitrary Kubernetes manifests to deploy within the release
+extraManifests: []
+
+# -- PodDisruptionBudget configuration
+pdb:
+  enabled: false
+  maxUnavailable: 25%

@@ -58,3 +58,17 @@ ServiceAccount name to use.
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Render a piece of yaml that defines manifests
+Usage:
+{{ include "mytoolkit.tools.render" ( dict "value" .Values.path.to.value "context" $ ) }}
+*/}}
+{{- define "mytoolkit.tools.render" -}}
+{{- $value := typeIs "string" .value | ternary .value (.value | toYaml) }}
+{{- if contains "{{" $value }}
+  {{- tpl $value .context }}
+{{- else }}
+  {{- $value }}
+{{- end }}
+{{- end -}}

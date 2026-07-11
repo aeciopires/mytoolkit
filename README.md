@@ -58,6 +58,7 @@ Tools sites related:
 - [GitHub - golang-jwt/jwt](https://github.com/golang-jwt/jwt)
 - [Toon Format](https://toonformat.dev/)
 - [GitHub - toon-format/toon](https://github.com/toon-format/toon)
+- [Crontab.guru](https://crontab.guru/)
 
 ## Screenshots
 
@@ -311,7 +312,7 @@ See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrap
 
 ## Makefile targets
 
-Run `make help` for the full, self-documenting list (build, run, test, coverage, lint, check-tools, deps-check, docker-build, docker-buildx, docker-run, docker-push, compose-up/down, helm-lint, helm-template, helm-docs, kind-load, helm-install, helm-uninstall, helm-test, clean).
+Run `make help` for the full, self-documenting list (build, check-tools, clean, compose-down, compose-up, coverage, deps-check, docker-build, docker-buildx, docker-push, docker-run, fmt, helm-docs, helm-install, helm-lint, helm-template, helm-test, helm-uninstall, help, kind-load, lint, run, test, test-verbose, vet).
 
 ## Developer
 
