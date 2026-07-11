@@ -1,3 +1,5 @@
+SHELL          := /bin/bash
+
 APP_NAME       := mytoolkit
 VERSION        := $(shell cat VERSION)
 IMAGE          := $(APP_NAME)
