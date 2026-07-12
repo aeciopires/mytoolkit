@@ -3,6 +3,7 @@
 - [MyToolkit](#mytoolkit)
   - [Screenshots](#screenshots)
   - [Features](#features)
+  - [Software Requirements](#software-requirements)
   - [Getting started](#getting-started)
     - [Makefile targets](#makefile-targets)
     - [Web mode](#web-mode)
@@ -15,6 +16,7 @@
   - [Environment variables](#environment-variables)
   - [Testing](#testing)
   - [Tools sites related](#tools-sites-related)
+  - [Technology Stack](#technology-stack)
   - [Architecture](#architecture)
   - [Directory structure](#directory-structure)
   - [Developer](#developer)
@@ -70,11 +72,58 @@ Every page shares the same navigation shell:
 - 🔄 **JSON to YAML Converter** – Convert a JSON document to YAML, powered by [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml).
 - ☸️ **Kubernetes YAML Validator** – Validate that a YAML document (single or multi-document) has the fields the Kubernetes API requires (`apiVersion`, `kind`, and a well-formed `metadata` block), powered by [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml). Does not validate against a specific resource's full schema — see the docs.
 
+## Software Requirements
+
+`make check-tools` verifies all of these are installed and on `PATH`:
+
+| Tool | Purpose |
+|---|---|
+| [Go](https://go.dev/dl/) >= 1.25 | Build, run, and test the application (`app/go.mod` pins `go 1.25.0`). |
+| [Git](https://git-scm.com/) | Clone the repository and version control. |
+| [Docker](https://docs.docker.com/get-docker/) (with the Compose plugin, `docker compose`) | Build/run container images and the local Prometheus + Grafana stack. |
+| [Helm](https://helm.sh/) v3 | Lint, template, and install the Kubernetes chart in [`helm/mytoolkit`](helm/mytoolkit). |
+| [kubectl](https://kubernetes.io/docs/tasks/tools/) | Interact with a Kubernetes cluster. |
+| [kind](https://kind.sigs.k8s.io/) | Run a local Kubernetes cluster (`kind-multinodes`) for `make kind-load`/`helm-install`/`helm-test`. |
+| [golangci-lint](https://golangci-lint.run/) | Run `make lint`. |
+| [helm-docs](https://github.com/norwoodj/helm-docs) | Regenerate `helm/mytoolkit/README.md` via `make helm-docs`. |
+
+Only Go, Git, and Docker are needed to build/run the app or its container image; Helm/kubectl/kind/golangci-lint/helm-docs are needed for the Kubernetes and linting workflows.
+
 ## Getting started
 
 ### Makefile targets
 
-Run `make help` for the full, self-documenting list (build, check-tools, clean, compose-down, compose-up, coverage, deps-check, docker-build, docker-buildx, docker-push, docker-run, fmt, helm-docs, helm-install, helm-lint, helm-set-appversion, helm-template, helm-test, helm-uninstall, help, kind-load, lint, run, swagger-gen, test, test-verbose, vet).
+Run `make help` for the full, self-documenting list. Most targets `cd` into `app/` for you:
+
+| Target | Description |
+|---|---|
+| `help` | Show the help listing (default goal). |
+| `build` | Build the mytoolkit binary into `bin/` (version from `./VERSION`). |
+| `run` | Run the web server locally (`go run`). |
+| `test` | Run unit tests. |
+| `test-verbose` | Run unit tests with verbose output. |
+| `coverage` | Run tests with a coverage report. |
+| `lint` | Run `golangci-lint`. |
+| `fmt` | Format Go source (`gofmt -s -w`). |
+| `vet` | Run `go vet`. |
+| `check-tools` | Verify required development/runtime tools are installed. |
+| `deps-check` | Verify the Go module graph is tidy (`go.mod`/`go.sum` hygiene). |
+| `docker-build` | Build a local single-platform Docker image (version from `./VERSION`). |
+| `docker-buildx` | Build (and validate) a multi-arch image for `linux/amd64` + `linux/arm64`. |
+| `docker-run` | Run the local Docker image on port 8080. |
+| `docker-push` | Prompt for Docker Hub credentials and push a multi-arch (amd64+arm64) image tagged with `$(VERSION)`. |
+| `compose-up` | Start the app via `docker compose`. |
+| `compose-down` | Stop the app started via `docker compose`. |
+| `helm-lint` | Lint the Helm chart. |
+| `helm-template` | Render the Helm chart locally. |
+| `helm-set-appversion` | Sync `helm/mytoolkit/Chart.yaml`'s `appVersion` with the root `VERSION` file. |
+| `helm-docs` | Sync `appVersion` with `VERSION` (runs `helm-set-appversion` first), then regenerate `helm/mytoolkit/README.md` from `README.md.gotmpl` + `values.yaml` comments. |
+| `kind-load` | Load the local Docker image into the `kind-multinodes` cluster. |
+| `helm-install` | `helm upgrade --install` against the kind cluster/namespace. |
+| `helm-uninstall` | `helm uninstall` from the kind cluster/namespace. |
+| `helm-test` | Run `helm test` (hits `/healthz`) against the installed release. |
+| `swagger-gen` | Regenerate `app/docs` (Swagger/OpenAPI spec) from `@`-annotations — run after touching any `@Router`/`@Summary`/etc. comment. |
+| `clean` | Remove build artifacts. |
 
 `make helm-docs` always runs `helm-set-appversion` first, syncing `helm/mytoolkit/Chart.yaml`'s `appVersion` field to the repo-root `VERSION` file before regenerating the chart README — so the chart's declared app version can never silently drift from what `mytoolkit --version` reports.
 
@@ -223,6 +272,24 @@ Every example in `docs/api/<tool>.md` and `docs/cli/<tool>.md` is verified again
 - [Toon Format](https://toonformat.dev/)
 - [GitHub - toon-format/toon](https://github.com/toon-format/toon)
 - [Crontab.guru](https://crontab.guru/)
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Language & runtime | [Go](https://go.dev/) 1.25 |
+| HTTP router | [go-chi/chi](https://github.com/go-chi/chi) v5 |
+| CLI framework | [spf13/cobra](https://github.com/spf13/cobra) + [spf13/pflag](https://github.com/spf13/pflag) |
+| Structured logging | [rs/zerolog](https://github.com/rs/zerolog) (JSON to stderr) |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) |
+| API documentation | [swaggo/swag](https://github.com/swaggo/swag) + [swaggo/http-swagger](https://github.com/swaggo/http-swagger) (OpenAPI/Swagger UI, generated from code annotations) |
+| JWT tool | [golang-jwt/jwt](https://github.com/golang-jwt/jwt) v5 |
+| QR Code tool | [skip2/go-qrcode](https://github.com/skip2/go-qrcode) |
+| YAML processing | [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) and [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) |
+| Web frontend | Server-rendered Go `html/template`, embedded vanilla CSS/JS, [Material Design 3](https://m3.material.io/) design tokens |
+| Containerization | Docker multi-stage build onto [`gcr.io/distroless/static-debian12:nonroot`](https://github.com/GoogleContainerTools/distroless), Docker Compose |
+| Orchestration | Kubernetes, [Helm](https://helm.sh/) chart ([`helm/mytoolkit`](helm/mytoolkit)) |
+| Observability stack | [Prometheus](https://prometheus.io/) + [Grafana](https://grafana.com/) (provisioned via `docker-compose.yml`, see [Observability](#observability-prometheus--grafana)) |
 
 ## Architecture
 
