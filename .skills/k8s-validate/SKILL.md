@@ -38,4 +38,6 @@ A document that decodes to JSON `null` (a stray leading/trailing `---`, or an ex
 
 Unlike every other tool's CLI command, `mytoolkit k8s-validate`'s `RunE` still writes the full report to `--out` on a semantic failure (missing kind, etc.), then returns a *plain* `fmt.Errorf` (not routed through `apperr`) to get a non-zero exit code — this is deliberate, so the command is usable directly in CI (`mytoolkit k8s-validate --in manifest.yaml || exit 1`). A hard YAML syntax error still goes through the normal `apperr`-driven error path with no report written.
 
+MCP: `k8s-validate` tool (`app/internal/mcp/k8s_validate.go`) — mirrors the REST handler: a semantically-invalid-but-parseable document is `isError: false` with `Result.Valid == false`, not a tool error. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_K8S_YAML_VALIDATOR.md`. Docs: `docs/api|cli|testing/k8s-validate.md`.

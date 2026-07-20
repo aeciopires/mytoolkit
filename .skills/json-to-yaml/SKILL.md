@@ -23,4 +23,6 @@ The JSON string `"NO"` or `"y"` comes out of `JSONToYAML` as quoted YAML (`"NO"`
 
 REST/CLI wiring is fully generic via `handlers.Wrap` / `newTextToolCommand` (see `app/internal/cli/jsontoyaml.go`). The web page (`json-to-yaml.html`) has no `tool-options` block since there are no options to expose.
 
+MCP: `json-to-yaml` tool (`app/internal/mcp/json_to_yaml.go`), no options field (mirrors `jsontoyaml.Options{}`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_JSON_TO_YAML_CONVERTER.md`. Docs: `docs/api|cli|testing/json-to-yaml.md`.

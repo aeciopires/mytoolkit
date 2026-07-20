@@ -20,6 +20,29 @@ services:
     networks:
       - mynet
 
+  # Optional: streamable-HTTP MCP endpoint (stdio, the default transport,
+  # doesn't fit a long-running Compose service — invoke it ad hoc instead:
+  # `docker run -i --rm mytoolkit:latest mcp`; see mcp/README.md).
+  # Disabled by default; start explicitly with:
+  #   docker compose --profile mcp up -d mytoolkit-mcp
+  mytoolkit-mcp:
+    profiles: ["mcp"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mytoolkit:latest
+    command: ["mcp", "--transport", "http", "--port", "8081"]
+    ports:
+      - "8081:8081"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MYTOOLKIT_HOST: "0.0.0.0"
+    restart: unless-stopped
+    networks:
+      - mynet
+
   prometheus:
     image: prom/prometheus
     container_name: prometheus

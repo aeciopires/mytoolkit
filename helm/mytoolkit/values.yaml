@@ -100,6 +100,60 @@ env:
   # -- Log level: debug, info, warn, error (MYTOOLKIT_LOG_LEVEL)
   logLevel: info
 
+mcp:
+  # -- Deploy a second Deployment/Service running the MCP server over streamable HTTP (same image, disabled by default; see mcp/README.md)
+  enabled: false
+  # -- TCP port the MCP Deployment/Service listens on
+  port: 8081
+  # -- Number of MCP pod replicas (ignored when mcp.autoscaling.enabled is true)
+  replicaCount: 1
+
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for the MCP Deployment; when false it reuses the shared serviceAccount above
+    create: false
+    # -- Extra annotations for the MCP ServiceAccount
+    annotations: {}
+    # -- MCP ServiceAccount name; generated if empty
+    name: ""
+
+  secret:
+    # -- Create a Secret resource for the MCP Deployment (placeholder for future secret-backed config; disabled by default)
+    enabled: false
+    # -- Secret data as plain key/value pairs (base64-encoded by the template)
+    data: {}
+
+  ingress:
+    # -- Enable an Ingress resource for the MCP Deployment (only meaningful when using the http transport)
+    enabled: false
+    # -- IngressClass name
+    className: ""
+    # -- Extra Ingress annotations
+    annotations: {}
+    # -- Ingress hosts
+    hosts:
+      - host: mytoolkit-mcp.local
+        paths:
+          - path: /
+            pathType: Prefix
+    # -- Ingress TLS configuration
+    tls: []
+
+  autoscaling:
+    # -- Enable a HorizontalPodAutoscaler for the MCP Deployment
+    enabled: false
+    # -- Minimum replica count
+    minReplicas: 1
+    # -- Maximum replica count
+    maxReplicas: 5
+    # -- Target average CPU utilization percentage
+    targetCPUUtilizationPercentage: 80
+
+  pdb:
+    # -- Enable a PodDisruptionBudget for the MCP Deployment
+    enabled: false
+    # -- Maximum unavailable MCP pods during a voluntary disruption
+    maxUnavailable: 25%
+
 metrics:
   serviceMonitor:
     # -- Create a Prometheus Operator ServiceMonitor (requires the CRD to be installed)

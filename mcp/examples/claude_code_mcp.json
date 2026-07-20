@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mytoolkit": {
+      "command": "mytoolkit",
+      "args": ["mcp"]
+    }
+  }
+}

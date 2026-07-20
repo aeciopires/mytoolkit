@@ -2,7 +2,7 @@
   "id": null,
   "uid": "mytoolkit-overview",
   "title": "MyToolkit — Application Metrics",
-  "description": "All metrics exposed by the MyToolkit binary at /metrics: HTTP traffic, request latency, per-tool usage, and Go runtime/process health. Data source: the 'mytoolkit' Prometheus scrape job (see observability/prometheus.yml).",
+  "description": "All metrics exposed by the MyToolkit binary at /metrics: HTTP traffic, request latency, per-tool usage, MCP server activity, and Go runtime/process health. Data source: the 'mytoolkit' and 'mytoolkit-mcp' Prometheus scrape jobs (see observability/prometheus.yml).",
   "tags": ["mytoolkit"],
   "timezone": "browser",
   "editable": true,
@@ -155,11 +155,142 @@
       "description": "Same ranking the app's own GET /api/v1/metrics/ranking endpoint derives from this metric."
     },
 
-    { "id": 103, "type": "row", "title": "Go Runtime & Process Health", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 }, "panels": [] },
+    { "id": 104, "type": "row", "title": "MCP Server (mytoolkit_mcp_*)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 }, "panels": [] },
+
+    {
+      "id": 21, "type": "stat", "title": "Total MCP Tool Calls (selected range)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(increase(mytoolkit_mcp_tool_calls_total[$__range]))", "legendFormat": "tool calls", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area", "textMode": "auto" }
+    },
+    {
+      "id": 22, "type": "stat", "title": "MCP Tool Call Error Rate",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "100 * sum(rate(mytoolkit_mcp_tool_calls_total{status=\"error\"}[5m])) / sum(rate(mytoolkit_mcp_tool_calls_total[5m]))", "legendFormat": "error %", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 5 }, { "color": "red", "value": 20 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area", "textMode": "auto" }
+    },
+    {
+      "id": 23, "type": "stat", "title": "MCP HTTP Transport Up",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "up{job=\"mytoolkit-mcp\"}", "legendFormat": "up", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" },
+      "description": "Only reflects the optional streamable-HTTP MCP deployment/Compose service (mcp.enabled / --profile mcp). The stdio transport has no listening port, so it can't be scraped — see mcp/README.md."
+    },
+    {
+      "id": 24, "type": "stat", "title": "MCP Sessions (selected range)",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(increase(mytoolkit_mcp_sessions_total[$__range]))", "legendFormat": "sessions", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" }
+    },
+    {
+      "id": 25, "type": "stat", "title": "MCP Requests (selected range, all methods)",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(increase(mytoolkit_mcp_requests_total[$__range]))", "legendFormat": "requests", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" }
+    },
+
+    {
+      "id": 26, "type": "timeseries", "title": "MCP Tool Call Rate by Tool (mytoolkit_mcp_tool_calls_total)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(rate(mytoolkit_mcp_tool_calls_total[5m])) by (tool)", "legendFormat": "{{tool}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "none" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 27, "type": "timeseries", "title": "MCP Request Rate by Method (mytoolkit_mcp_requests_total)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(rate(mytoolkit_mcp_requests_total[5m])) by (method)", "legendFormat": "{{method}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 15, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 28, "type": "table", "title": "MCP Tool Calls by Tool & Status (current totals)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 62 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(mytoolkit_mcp_tool_calls_total) by (tool, status)", "format": "table", "instant": true, "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+
+    { "id": 105, "type": "row", "title": "MCP Tool Call Latency (mytoolkit_mcp_tool_call_duration_seconds)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 70 }, "panels": [] },
+
+    {
+      "id": 29, "type": "timeseries", "title": "MCP Tool Call Latency Percentiles",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 71 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "p95 MCP Tool Call Latency by Tool",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 71 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le, tool))", "legendFormat": "{{tool}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 31, "type": "bargauge", "title": "Successful MCP Tool Calls by Tool",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 79 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(mytoolkit_mcp_tool_calls_total{status=\"success\"}) by (tool)", "legendFormat": "{{tool}}", "format": "time_series", "instant": true, "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "continuous-BlPu" }, "min": 0 }, "overrides": [] },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true, "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 32, "type": "table", "title": "MCP Tool Call Ranking",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 79 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sort_desc(sum(mytoolkit_mcp_tool_calls_total{status=\"success\"}) by (tool))", "format": "table", "instant": true, "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "Value", "desc": true }] },
+      "description": "Successful MCP tool calls only, ranked descending — the MCP-surface analogue of the REST/web 'Tool Usage Ranking' panel above, tracked separately (see PLAN_ARCHITECTURE.md's usage-ranking scope note)."
+    },
+
+    { "id": 103, "type": "row", "title": "Go Runtime & Process Health", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 89 }, "panels": [] },
 
     {
       "id": 14, "type": "timeseries", "title": "Goroutines",
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 50 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 90 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "go_goroutines{job=\"mytoolkit\"}", "legendFormat": "goroutines", "refId": "A" },
@@ -170,7 +301,7 @@
     },
     {
       "id": 15, "type": "timeseries", "title": "Memory Usage",
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 50 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 90 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "go_memstats_heap_alloc_bytes{job=\"mytoolkit\"}", "legendFormat": "Go heap alloc", "refId": "A" },
@@ -182,7 +313,7 @@
     },
     {
       "id": 16, "type": "timeseries", "title": "Open File Descriptors",
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 50 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 90 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "process_open_fds{job=\"mytoolkit\"}", "legendFormat": "open", "refId": "A" },
@@ -193,7 +324,7 @@
     },
     {
       "id": 17, "type": "timeseries", "title": "CPU Usage",
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 57 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 97 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(process_cpu_seconds_total{job=\"mytoolkit\"}[5m])", "legendFormat": "CPU seconds/sec", "refId": "A" }
@@ -203,7 +334,7 @@
     },
     {
       "id": 18, "type": "timeseries", "title": "GC Pause Duration",
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 57 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 97 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "go_gc_duration_seconds{job=\"mytoolkit\",quantile=\"0.5\"}", "legendFormat": "median", "refId": "A" },
@@ -215,7 +346,7 @@
     },
     {
       "id": 19, "type": "timeseries", "title": "Network I/O",
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 57 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 97 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(process_network_receive_bytes_total{job=\"mytoolkit\"}[5m])", "legendFormat": "receive", "refId": "A" },
@@ -226,7 +357,7 @@
     },
     {
       "id": 20, "type": "stat", "title": "Go Version",
-      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 64 },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 104 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "go_info{job=\"mytoolkit\"}", "legendFormat": "{{version}}", "format": "time_series", "instant": true, "refId": "A" }

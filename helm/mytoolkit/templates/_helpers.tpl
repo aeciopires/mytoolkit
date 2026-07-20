@@ -49,6 +49,39 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+Fully qualified name for the optional MCP Deployment/Service — distinct
+from mytoolkit.fullname's "-mcp" suffix, mytoolkit.name in
+mytoolkit.mcp.selectorLabels below (matching "app.kubernetes.io/name" to a
+different value than the main workload) so its pod selector can never
+overlap with the main Deployment's selector, which is immutable once
+created and therefore must never be touched by this addition.
+*/}}
+{{- define "mytoolkit.mcp.fullname" -}}
+{{- printf "%s-mcp" (include "mytoolkit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Selector labels for the optional MCP Deployment/Service.
+*/}}
+{{- define "mytoolkit.mcp.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "mytoolkit.name" . }}-mcp
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{/*
+Common labels for the optional MCP Deployment/Service.
+*/}}
+{{- define "mytoolkit.mcp.labels" -}}
+helm.sh/chart: {{ include "mytoolkit.chart" . }}
+{{ include "mytoolkit.mcp.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/component: mcp
+{{- end -}}
+
+{{/*
 ServiceAccount name to use.
 */}}
 {{- define "mytoolkit.serviceAccountName" -}}
@@ -56,6 +89,19 @@ ServiceAccount name to use.
 {{- default (include "mytoolkit.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+ServiceAccount name for the optional MCP Deployment. Falls back to the
+shared mytoolkit.serviceAccountName (preserving pre-existing behavior)
+unless mcp.serviceAccount.create opts into a dedicated identity.
+*/}}
+{{- define "mytoolkit.mcp.serviceAccountName" -}}
+{{- if .Values.mcp.serviceAccount.create -}}
+{{- default (include "mytoolkit.mcp.fullname" .) .Values.mcp.serviceAccount.name -}}
+{{- else -}}
+{{- include "mytoolkit.serviceAccountName" . -}}
 {{- end -}}
 {{- end -}}
 

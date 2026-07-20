@@ -19,3 +19,14 @@ MyToolkit has been installed.
 
 3. Run the chart's test suite:
   helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+{{- if .Values.mcp.enabled }}
+
+4. Get the MCP server URL:
+{{- if .Values.mcp.ingress.enabled }}
+{{- range .Values.mcp.ingress.hosts }}
+  http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "mytoolkit.mcp.fullname" . }} {{ .Values.mcp.port }}:{{ .Values.mcp.port }}
+{{- end }}
+{{- end }}

@@ -9,4 +9,6 @@ description: Implement or modify the QR Code Generator tool (internal/tools/qrco
 
 REST response is raw `image/png`, not the shared JSON envelope — the one deliberate exception, so `<img src="/api/v1/tools/qrcode">` and downloads work directly. CLI requires `--out <file>` (binary can't go to stdout) — see `app/internal/cli/qrcode.go`. Web page uses a hidden `<img class="tool-image-output">`, populated by `tool-common.js`'s image-response branch.
 
+MCP: `qrcode` tool (`app/internal/mcp/qrcode.go`) returns an `mcp.ImageContent` block (`image/png`), the one binary-output MCP tool — see `.skills/mcp/SKILL.md`. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_QR_CODE_GENERATOR.md`. Docs: `docs/api|cli|testing/qrcode.md`.

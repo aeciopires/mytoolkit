@@ -1,0 +1,85 @@
+{{- if .Values.mcp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mytoolkit.mcp.fullname" . }}
+  labels:
+    {{- include "mytoolkit.mcp.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.mcp.autoscaling.enabled }}
+  replicas: {{ .Values.mcp.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mytoolkit.mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.mcp.port | quote }}
+        prometheus.io/path: "/metrics"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "mytoolkit.mcp.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mytoolkit.mcp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-mcp
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["mcp", "--transport", "http", "--port", {{ .Values.mcp.port | quote }}]
+          ports:
+            - name: mcp
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "mytoolkit.mcp.fullname" . }}
+            {{- if .Values.mcp.secret.enabled }}
+            - secretRef:
+                name: {{ include "mytoolkit.mcp.fullname" . }}
+            {{- end }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # tcpSocket, not httpGet: the streamable-HTTP MCP endpoint expects
+          # a JSON-RPC POST with specific Accept headers, not a bare GET —
+          # a plain socket check is the correct probe here, not a workaround.
+          livenessProbe:
+            tcpSocket:
+              port: mcp
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: mcp
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

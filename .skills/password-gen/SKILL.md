@@ -13,4 +13,6 @@ Charset constants (`Lowercase`, `Uppercase`, `Numbers`, `Symbols`, `ConfusingCha
 
 `Length < 1` (including the JSON zero-value, i.e. omitted) is a hard `INVALID_LENGTH` error — there is deliberately no "default to 16" fallback in the pure function; CLI flag defaults (`--length 16`) provide that UX instead.
 
+MCP: `password-gen` tool (`app/internal/mcp/password_gen.go`) — no MCP-side defaulting either, same reasoning as REST (see `.skills/mcp/SKILL.md`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_PASSWORD_GENERATOR.md`. Docs: `docs/api|cli|testing/password-gen.md`.

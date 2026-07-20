@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine AS builder
 
 WORKDIR /build
 
@@ -22,6 +22,10 @@ COPY --from=builder /out/mytoolkit /mytoolkit
 
 USER nonroot:nonroot
 EXPOSE 8080
+# Default port for `mytoolkit mcp --transport http` (stdio is the default
+# transport and needs no port; see mcp/README.md). CMD stays `serve` —
+# MCP is invoked by overriding the command, e.g. `docker run -i ... mcp`.
+EXPOSE 8081
 
 ENTRYPOINT ["/mytoolkit"]
 CMD ["serve"]

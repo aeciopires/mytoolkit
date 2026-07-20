@@ -1,9 +1,12 @@
 <!-- TOC -->
 
 - [Changelog](#changelog)
-  - [\[1.0.0\] - 2026-07-10](#100---2026-07-10)
+  - [\[1.1.0\] - 2026-07-20](#110---2026-07-20)
     - [Added](#added)
     - [Changed](#changed)
+  - [\[1.0.0\] - 2026-07-10](#100---2026-07-10)
+    - [Added](#added-1)
+    - [Changed](#changed-1)
     - [Fixed](#fixed)
 
 <!-- TOC -->
@@ -14,6 +17,23 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.0] - 2026-07-20
+
+### Added
+
+- MCP (Model Context Protocol) server: a 4th surface alongside the web UI, REST API, and CLI, exposing all 15 tools as 16 MCP tools (JWT splits into `jwt_encode`/`jwt_decode`) via the new `mytoolkit mcp` subcommand. Built on the official `github.com/modelcontextprotocol/go-sdk`, it calls the exact same `internal/tools/<name>` pure functions the other three surfaces already call — zero duplicated business logic. Lives at `app/internal/mcp/` (one file per tool, self-registering via `init()`, mirroring `internal/cli/<name>.go`'s pattern) plus `app/internal/cli/mcp.go` for the cobra wiring; `mcp/README.md` at the repo root documents installation and client configuration (Claude Desktop, Claude Code), with example config files under `mcp/examples/` and a Mermaid workflow diagram.
+- Two transports: `stdio` (default, for local MCP clients) and streamable `http` (`--transport http --port 8081`, for a shared/remote MCP endpoint), configurable via `MYTOOLKIT_MCP_TRANSPORT`/`MYTOOLKIT_MCP_PORT`/`--transport`/`--port` following the same flag > env > default precedence as every other MyToolkit setting.
+- `qrcode`'s MCP tool returns an `image/png` content block (base64 on the wire) rather than JSON text, and `k8s-validate`'s MCP tool matches the REST endpoint's behavior of treating a parseable-but-semantically-invalid document as a successful call (`isError: false`) whose structured result reports `"valid": false` — both documented exceptions, not oversights.
+- `helm/mytoolkit`: optional `mcp.enabled` Deployment/Service pair (same image, `args: ["mcp", "--transport", "http", ...]`, TCP-socket liveness/readiness probes since the MCP endpoint isn't a plain HTTP GET target), plus its own dedicated ConfigMap, and optional HorizontalPodAutoscaler (`mcp.autoscaling.enabled`), PodDisruptionBudget (`mcp.pdb.enabled`), ServiceAccount (`mcp.serviceAccount.create`, falls back to the shared ServiceAccount when disabled), Secret (`mcp.secret.enabled`), and Ingress (`mcp.ingress.enabled`) — mirroring the equivalent toggles already available for the main Deployment. `docker-compose.yml`: optional `mytoolkit-mcp` service under the `mcp` Compose profile. `Makefile`: `mcp-run`/`mcp-run-http` targets.
+- Verified end-to-end against the real built binary: a throwaway MCP client driving `mytoolkit mcp` over both a real `os/exec` stdio subprocess and a `curl` streamable-HTTP handshake — `tools/list` (16 tools), a `base64` round trip, an intentionally invalid option producing `isError: true`, `k8s-validate`'s non-error semantic-invalid result, and `qrcode`'s image content block all confirmed against actual output, not hand-typed — plus 30 new Go tests under `app/internal/mcp/`.
+- MCP Prometheus metrics: `mytoolkit_mcp_requests_total{method,status}`/`mytoolkit_mcp_request_duration_seconds{method}` for every JSON-RPC method, `mytoolkit_mcp_tool_calls_total{tool,status}`/`mytoolkit_mcp_tool_call_duration_seconds{tool}` for `tools/call` specifically, and `mytoolkit_mcp_sessions_total` — recorded by one `server.AddReceivingMiddleware` hook (`app/internal/mcp/metrics.go`) covering all 16 tools and every JSON-RPC method, no per-handler instrumentation. Kept as a metric family separate from `mytoolkit_http_*`/`mytoolkit_tool_usage_total` (distinct client population). `GET /metrics` is mounted alongside the MCP JSON-RPC endpoint on the same `http.ServeMux` when `--transport http` — `stdio` has no listening port, so it isn't exposed there (inherent to the transport, not a gap).
+- Grafana dashboard: a new "MCP Server" row (12 panels — tool call rate/error-rate/latency percentiles by tool, request rate by JSON-RPC method, session count, current-totals table, and a tool-call ranking) added to `observability/mytoolkit-dashboard.json`. `observability/prometheus.yml` gained a `mytoolkit-mcp` scrape job (the optional Compose `mcp` profile service); `helm/mytoolkit/templates/mcp-deployment.yaml` gained `prometheus.io/scrape` annotations and a new optional `mcp-servicemonitor.yaml`. Verified end-to-end against the real docker-compose stack: real `initialize`/`tools/call` JSON-RPC traffic against `mytoolkit-mcp`, confirmed present in Prometheus via direct API query, and confirmed rendering in the provisioned Grafana dashboard via Grafana's own datasource-proxy API (not just visual inspection of the JSON).
+
+### Changed
+
+- `app/go.mod` now pins `go 1.26.5` (previously `1.25.0`), and the Dockerfile's builder stage moved from `golang:1.25-alpine` to `golang:1.26.5-alpine` to match. `README.md`'s toolchain table and Technology Stack entry updated accordingly.
+- Dependencies refreshed via `go get -u ./... && go mod tidy`: notably `github.com/prometheus/client_golang` v1.23.2 → v1.24.0, `github.com/prometheus/common` v0.66.1 → v0.70.0, `github.com/prometheus/procfs` v0.16.1 → v0.21.1, `github.com/spf13/pflag` v1.0.9 → v1.0.10, `github.com/go-openapi/swag` v0.19.15 → v0.27.3 (plus its now-modularized `github.com/go-openapi/swag/*` sub-packages), and `golang.org/x/{mod,net,oauth2,sync,sys,tools}` to their latest patch/minor releases. Verified with `go build ./...`, `go vet ./...`, `go test ./...`, and `go mod verify && go mod tidy -diff` against the real module graph — no source changes required.
 
 ## [1.0.0] - 2026-07-10
 

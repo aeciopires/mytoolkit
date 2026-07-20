@@ -1,0 +1,17 @@
+{{- if and .Values.mcp.enabled .Values.mcp.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "mytoolkit.mcp.fullname" . }}
+  labels:
+    {{- include "mytoolkit.mcp.labels" . | nindent 4 }}
+spec:
+  {{- if and (not .Values.mcp.autoscaling.enabled) (gt (.Values.mcp.replicaCount | int) 1) }}
+  maxUnavailable: {{ .Values.mcp.pdb.maxUnavailable }}
+  {{- else if and (.Values.mcp.autoscaling.enabled) (gt (.Values.mcp.autoscaling.minReplicas | int) 1) }}
+  maxUnavailable: {{ .Values.mcp.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mytoolkit.mcp.selectorLabels" . | nindent 6 }}
+{{- end }}

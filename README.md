@@ -13,6 +13,7 @@
   - [Observability (Prometheus + Grafana)](#observability-prometheus--grafana)
   - [Documentation](#documentation)
   - [API Documentation (Swagger)](#api-documentation-swagger)
+  - [MCP Server](#mcp-server)
   - [Environment variables](#environment-variables)
   - [Testing](#testing)
   - [Tools sites related](#tools-sites-related)
@@ -78,7 +79,7 @@ Every page shares the same navigation shell:
 
 | Tool | Purpose |
 |---|---|
-| [Go](https://go.dev/dl/) >= 1.25 | Build, run, and test the application (`app/go.mod` pins `go 1.25.0`). |
+| [Go](https://go.dev/dl/) >= 1.26.5 | Build, run, and test the application (`app/go.mod` pins `go 1.26.5`). |
 | [Git](https://git-scm.com/) | Clone the repository and version control. |
 | [Docker](https://docs.docker.com/get-docker/) (with the Compose plugin, `docker compose`) | Build/run container images and the local Prometheus + Grafana stack. |
 | [Helm](https://helm.sh/) v3 | Lint, template, and install the Kubernetes chart in [`helm/mytoolkit`](helm/mytoolkit). |
@@ -180,7 +181,7 @@ See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrap
 
 ## Observability (Prometheus + Grafana)
 
-`docker compose up --build` also starts Prometheus (scraping `mytoolkit`'s `/metrics` every 15s, per [`observability/prometheus.yml`](observability/prometheus.yml)) and Grafana, pre-provisioned with a Prometheus data source and the **MyToolkit — Application Metrics** dashboard ([`observability/mytoolkit-dashboard.json`](observability/mytoolkit-dashboard.json)) — no manual setup needed.
+`docker compose up --build` also starts Prometheus (scraping `mytoolkit`'s `/metrics` every 15s, per [`observability/prometheus.yml`](observability/prometheus.yml)) and Grafana, pre-provisioned with a Prometheus data source and the **MyToolkit — Application Metrics** dashboard ([`observability/mytoolkit-dashboard.json`](observability/mytoolkit-dashboard.json)) — no manual setup needed. The dashboard includes a dedicated **MCP Server** row (tool call rate/errors/latency, requests by JSON-RPC method, sessions) fed by the optional `mytoolkit-mcp` Compose service — add it with `docker compose --profile mcp up -d mytoolkit-mcp` (see [MCP Server](#mcp-server) below and [`mcp/README.md`](mcp/README.md#observability)).
 
 - Prometheus: <http://localhost:9090>
 - Grafana: <http://localhost:3000> (login `admin` / `admin`, per `GF_SECURITY_ADMIN_PASSWORD` in `docker-compose.yml`; Grafana will prompt to change it on first login — safe to skip for local use)
@@ -217,13 +218,19 @@ Every REST endpoint is also documented interactively at **`/swagger/index.html`*
 
 If you change a tool's REST request/response shape, update its `@`-annotations (see `.skills/swagger/SKILL.md`) and run `make swagger-gen` to regenerate `app/docs/` before committing.
 
+## MCP Server
+
+Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) tool, so MCP-aware clients (Claude Desktop, Claude Code, and others) can call them directly — `mytoolkit mcp` (stdio, the default) or `mytoolkit mcp --transport http --port 8081` (streamable HTTP), reusing the exact same `internal/tools/<name>` functions as the web UI, REST API, and CLI. When running over HTTP, it also exposes `mytoolkit_mcp_*` Prometheus metrics (tool call rate/errors/latency, requests by method, sessions) at `/metrics`, visualized in the Grafana dashboard's "MCP Server" row (see [Observability](#observability-prometheus--grafana) above). See [mcp/README.md](mcp/README.md) for installation, client configuration examples, metrics, and a Mermaid workflow diagram.
+
 ## Environment variables
 
 | Variable | CLI flag (`serve`) | Default | Description |
 |---|---|---|---|
-| `MYTOOLKIT_HOST` | `--host` | `0.0.0.0` | Interface the HTTP server binds to. |
+| `MYTOOLKIT_HOST` | `--host` | `0.0.0.0` | Interface the HTTP server binds to. Also used by `mytoolkit mcp --transport http`. |
 | `MYTOOLKIT_PORT` | `--port` | `8080` | TCP port the HTTP server listens on. |
-| `MYTOOLKIT_LOG_LEVEL` | `--log-level` | `info` | zerolog level: `debug`, `info`, `warn`, `error`. |
+| `MYTOOLKIT_LOG_LEVEL` | `--log-level` | `info` | zerolog level: `debug`, `info`, `warn`, `error`. Also used by `mytoolkit mcp`. |
+| `MYTOOLKIT_MCP_TRANSPORT` | `--transport` (`mcp`) | `stdio` | `stdio` or `http`. See [mcp/README.md](mcp/README.md). |
+| `MYTOOLKIT_MCP_PORT` | `--port` (`mcp`) | `8081` | TCP port `mytoolkit mcp --transport http` listens on. |
 
 Full details: [docs/environment-variables.md](docs/environment-variables.md). Copy `.env-example` to `.env` for local dev / `docker-compose`.
 
@@ -277,12 +284,13 @@ Every example in `docs/api/<tool>.md` and `docs/cli/<tool>.md` is verified again
 
 | Layer | Technology |
 |---|---|
-| Language & runtime | [Go](https://go.dev/) 1.25 |
+| Language & runtime | [Go](https://go.dev/) 1.26.5 |
 | HTTP router | [go-chi/chi](https://github.com/go-chi/chi) v5 |
 | CLI framework | [spf13/cobra](https://github.com/spf13/cobra) + [spf13/pflag](https://github.com/spf13/pflag) |
 | Structured logging | [rs/zerolog](https://github.com/rs/zerolog) (JSON to stderr) |
 | Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) |
 | API documentation | [swaggo/swag](https://github.com/swaggo/swag) + [swaggo/http-swagger](https://github.com/swaggo/http-swagger) (OpenAPI/Swagger UI, generated from code annotations) |
+| MCP server | [modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk) (stdio + streamable HTTP transports, see [mcp/README.md](mcp/README.md)) |
 | JWT tool | [golang-jwt/jwt](https://github.com/golang-jwt/jwt) v5 |
 | QR Code tool | [skip2/go-qrcode](https://github.com/skip2/go-qrcode) |
 | YAML processing | [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) and [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) |
@@ -370,6 +378,7 @@ mytoolkit/
 │   │   ├── registry/        tool metadata
 │   │   ├── cli/              cobra commands (one file per tool)
 │   │   ├── httpapi/          chi router, health, generic REST handler
+│   │   ├── mcp/               MCP server (16 tools, stdio + streamable HTTP)
 │   │   ├── metrics/          Prometheus collectors + usage ranking
 │   │   ├── web/               html/template pages + embedded CSS/JS
 │   │   └── tools/<name>/      pure business logic + tests, one package per tool
@@ -380,6 +389,7 @@ mytoolkit/
 │   ├── testing/<tool>.md    Unit test reference per tool
 │   └── environment-variables.md
 ├── .skills/<tool>/SKILL.md  dev skill per tool
+├── mcp/                     MCP server docs + client config examples (server code lives in app/internal/mcp/)
 ├── helm/mytoolkit/          Helm chart
 ├── images/                  README screenshots
 ├── observability/           Prometheus scrape config + Grafana dashboard/provisioning

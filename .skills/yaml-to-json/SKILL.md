@@ -27,4 +27,6 @@ Verified directly, not assumed: unquoted `NO`/`y` (and `n`/`yes`/`on`/`off`) in 
 
 REST/CLI wiring is fully generic via `handlers.Wrap` / `newTextToolCommand` (see `app/internal/cli/yamltojson.go`).
 
+MCP: `yaml-to-json` tool (`app/internal/mcp/yaml_to_json.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_YAML_TO_JSON_CONVERTER.md`. Docs: `docs/api|cli|testing/yaml-to-json.md`.

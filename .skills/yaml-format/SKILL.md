@@ -27,4 +27,6 @@ REST/CLI wiring is fully generic via `handlers.Wrap` / `newTextToolCommand` (see
 
 `yaml-to-json`/`json-to-yaml` deliberately use `sigs.k8s.io/yaml` instead of `gopkg.in/yaml.v3` — see `.skills/yaml-to-json/SKILL.md` for why (this formatter needs `yaml.Node` for a same-format round trip; those converters don't have one to preserve). Don't "consolidate" onto one YAML library without re-reading both skills first.
 
+MCP: `yaml-format` tool (`app/internal/mcp/yaml_format.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_YAML_FORMATTER.md`. Docs: `docs/api|cli|testing/yaml-format.md`.

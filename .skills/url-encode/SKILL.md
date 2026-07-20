@@ -9,4 +9,6 @@ description: Implement or modify the URL Encode/Decode tool (internal/tools/urle
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 
+MCP: `url-encode` tool (`app/internal/mcp/url_encode.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_URL_ENCODE_DECODE.md`. Docs: `docs/api|cli|testing/url-encode.md`.

@@ -11,4 +11,6 @@ Package is `base64enc` (not `base64`, to avoid colliding with stdlib `encoding/b
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 
+MCP: `base64` tool (`app/internal/mcp/base64.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_BASE64_ENCODE_DECODE.md`. Docs: `docs/api|cli|testing/base64.md`.

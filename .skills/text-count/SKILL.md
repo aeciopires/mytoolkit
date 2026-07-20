@@ -11,4 +11,6 @@ Rules: `characters` via `utf8.RuneCountInString` (never `len()` — multi-byte r
 
 Web page (`internal/web/templates/tools/text-count.html`) is fully custom (no `tool-panel.html` partial, no output textarea — just an input and a live stats row), so it has its own `#clear-btn` wired directly in an inline script, not the shared `tool-common.js` data-action machinery. `Clear` empties the input, resets all four stat spans to `0`, clears the error banner, and refocuses the input.
 
+MCP: `text-count` tool (`app/internal/mcp/text_count.go`), returns `textcount.Counts` as structured output. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_TEXT_COUNTER.md`. Docs: `docs/api|cli|testing/text-count.md`.

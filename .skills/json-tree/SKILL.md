@@ -29,4 +29,6 @@ Web page: `app/internal/web/templates/tools/json-tree.html` — a custom recursi
 - "Clear" empties both the input textarea and the tree output.
 - Type-based syntax coloring (`.json-key`, `.json-value.json-string/.json-number/.json-bool/.json-null`) uses the `--json-*` CSS custom properties in `theme.css` (VS Code-inspired, separate light/dark values) — reuse those tokens for any similar syntax-highlighting need elsewhere rather than hardcoding new colors.
 
+MCP: `json-tree` tool (`app/internal/mcp/json_tree.go`) — uses `Out any`, not `jsontree.Node`, since the schema inferrer panics on `Node`'s recursive `Children []Node` field; see `.skills/mcp/SKILL.md`. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_JSON_TREE_VIEWER.md`. Docs: `docs/api|cli|testing/json-tree.md`.

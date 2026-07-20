@@ -11,4 +11,6 @@ description: Implement or modify the Case Converter tool (internal/tools/casecon
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 
+MCP: `case-convert` tool (`app/internal/mcp/case_convert.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_CASE_CONVERTER.md`. Docs: `docs/api|cli|testing/case-convert.md`.

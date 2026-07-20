@@ -5,3 +5,12 @@ scrape_configs:
   - job_name: 'mytoolkit'
     static_configs:
       - targets: ['mytoolkit:8080']
+
+  # Scrapes the optional mytoolkit-mcp Compose service (streamable-HTTP MCP
+  # transport, --transport http --port 8081; see mcp/README.md). This
+  # target is only up when that service was started explicitly with
+  # `docker compose --profile mcp up -d mytoolkit-mcp` — otherwise it just
+  # shows as down in Prometheus/Grafana, same as any optional target.
+  - job_name: 'mytoolkit-mcp'
+    static_configs:
+      - targets: ['mytoolkit-mcp:8081']

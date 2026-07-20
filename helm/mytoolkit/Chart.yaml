@@ -3,7 +3,7 @@ name: mytoolkit
 description: A suite of developer utilities exposed as a web app, REST API, and CLI.
 type: application
 version: 1.0.0
-appVersion: "1.0.0"
+appVersion: "1.1.0"
 home: https://github.com/aeciopires/mytoolkit
 sources:
   - https://github.com/aeciopires/mytoolkit

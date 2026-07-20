@@ -26,10 +26,46 @@ var (
 		Name: "mytoolkit_tool_usage_total",
 		Help: "Total number of successful tool invocations, per tool.",
 	}, []string{"tool"})
+
+	// MCP metrics are recorded by internal/mcp's AddReceivingMiddleware hook
+	// (one middleware wraps every JSON-RPC method, both transports), kept
+	// separate from ToolUsageTotal/RequestsTotal above: the MCP surface is a
+	// distinct process/client population from the REST/web surface those
+	// track (see PLAN_ARCHITECTURE.md's usage-ranking scope note), so
+	// conflating them would misattribute usage between surfaces.
+	MCPRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "mytoolkit_mcp_requests_total",
+		Help: "Total number of MCP JSON-RPC requests processed, per method.",
+	}, []string{"method", "status"})
+
+	MCPRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "mytoolkit_mcp_request_duration_seconds",
+		Help:    "MCP JSON-RPC request duration in seconds, per method.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"method"})
+
+	MCPToolCallsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "mytoolkit_mcp_tool_calls_total",
+		Help: "Total number of MCP tools/call requests, per tool.",
+	}, []string{"tool", "status"})
+
+	MCPToolCallDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "mytoolkit_mcp_tool_call_duration_seconds",
+		Help:    "MCP tools/call request duration in seconds, per tool.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"tool"})
+
+	MCPSessionsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mytoolkit_mcp_sessions_total",
+		Help: "Total number of MCP sessions established (successful initialize requests).",
+	})
 )
 
 func init() {
-	prometheus.MustRegister(RequestsTotal, RequestDuration, ToolUsageTotal)
+	prometheus.MustRegister(
+		RequestsTotal, RequestDuration, ToolUsageTotal,
+		MCPRequestsTotal, MCPRequestDuration, MCPToolCallsTotal, MCPToolCallDuration, MCPSessionsTotal,
+	)
 }
 
 var (

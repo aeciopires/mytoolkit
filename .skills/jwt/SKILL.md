@@ -32,4 +32,6 @@ Bespoke REST/CLI wiring (`app/internal/cli/jwt.go`), not `handlers.Wrap`, since 
 
 The web page's Key field is a `<textarea data-option name="key">` (not the single-line `<input>` used for Secret), since `tool-common.js`'s `collectOptions()` already handles textareas via its generic `else` branch (`el.value`) — no JS changes were needed there.
 
+MCP: two tools, `jwt_encode`/`jwt_decode` (`app/internal/mcp/jwt.go`) — split from REST's single `mode`-discriminated endpoint into two clean input shapes; see `.skills/mcp/SKILL.md`. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_JWT_ENCODE_DECODE.md`. Docs: `docs/api|cli|testing/jwt.md`.

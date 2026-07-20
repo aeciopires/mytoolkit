@@ -19,4 +19,6 @@ Unlike REST/CLI, the web page (`app/internal/web/templates/tools/json-format.htm
 
 Because of this, `mytoolkit_tool_usage_total{tool="json-format"}` only reflects REST/CLI usage, not web page usage — same caveat as `json-toon` (see its `SKILL.md`).
 
+MCP: `json-format` tool (`app/internal/mcp/json_format.go`) — a full Go implementation, same as REST/CLI, unaffected by the web page's client-side-only behavior above. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_JSON_FORMATTER.md`. Docs: `docs/api|cli|testing/json-format.md`.

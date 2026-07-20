@@ -9,4 +9,6 @@ description: Implement or modify the Hash Generator tool (internal/tools/hashgen
 
 Fully generic wiring via `handlers.Wrap` / `newTextToolCommand`.
 
+MCP: `hash-gen` tool (`app/internal/mcp/hash_gen.go`). Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_HASH_GENERATOR.md`. Docs: `docs/api|cli|testing/hash-gen.md`.

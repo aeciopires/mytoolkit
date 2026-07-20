@@ -32,4 +32,6 @@ Object key order from the source JSON must be preserved (TOON is order-sensitive
 
 Only `delimiter` (comma/tab/pipe) and `indent_size` are exposed as options — the TOON spec's `keyFolding`/`flattenDepth` knobs are left at spec defaults, a known MVP limitation. Deeply nested/exotic array shapes fall back to a simplified list form rather than exhaustively implementing every corner of spec §9–§14; this is intentional, not a bug — see `PLAN_JSON_TOON_CONVERTER.md`'s TOON format primer for exactly what's implemented.
 
+MCP: `json-toon` tool (`app/internal/mcp/json_toon.go`) — calls the same full Go `jsontoon.Convert`, independent of the web page's client-side-only mirror. Docs: `mcp/README.md`.
+
 Plan: `PLANS/PLAN_JSON_TOON_CONVERTER.md`. Shared architecture: `PLANS/PLAN_ARCHITECTURE.md`. Docs: `docs/api|cli|testing/json-toon.md`.

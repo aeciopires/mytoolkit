@@ -31,6 +31,14 @@ build: ## Build the mytoolkit binary into bin/ (version from ./VERSION)
 run: ## Run the web server locally (go run)
 	cd $(SRC) && go run ./cmd/mytoolkit serve
 
+.PHONY: mcp-run
+mcp-run: ## Run the MCP server locally over stdio (go run)
+	cd $(SRC) && go run ./cmd/mytoolkit mcp
+
+.PHONY: mcp-run-http
+mcp-run-http: ## Run the MCP server locally over streamable HTTP on :8081
+	cd $(SRC) && go run ./cmd/mytoolkit mcp --transport http --port 8081
+
 .PHONY: test
 test: ## Run unit tests
 	cd $(SRC) && go test ./...
