@@ -90,6 +90,8 @@ Every page shares the same navigation shell:
 
 Only Go, Git, and Docker are needed to build/run the app or its container image; Helm/kubectl/kind/golangci-lint/helm-docs are needed for the Kubernetes and linting workflows.
 
+Alternatively, install [mise](https://mise.jdx.dev) and run `mise install` from the repo root to fetch Go/Helm/kubectl/kind/golangci-lint/helm-docs at the pinned versions in [`mise.toml`](mise.toml) (Git and Docker are still installed via your OS package manager).
+
 ## Getting started
 
 ### Makefile targets

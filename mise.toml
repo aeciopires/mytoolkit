@@ -1,0 +1,14 @@
+# mise (https://mise.jdx.dev) config for MyToolkit's software requirements.
+# Installs the versioned tools from the "Software Requirements" table in README.md.
+# Run `mise install` after cloning, then `make check-tools` to verify PATH wiring.
+#
+# Git and Docker (with the Compose plugin) are not managed here — install them via
+# your OS package manager; see README.md#software-requirements.
+
+[tools]
+go = "1.26.5"
+helm = "4.2.3"
+kubectl = "1.36.2"
+kind = "0.32.0"
+golangci-lint = "2.12.2"
+helm-docs = "1.14.2"
