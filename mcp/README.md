@@ -15,7 +15,7 @@
 
 # MyToolkit MCP Server
 
-An [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that exposes every [MyToolkit](../README.md) tool to MCP-aware clients (Claude Desktop, Claude Code, and any other MCP client), so an LLM assistant can format JSON, validate Kubernetes manifests, generate passwords, decode JWTs, and so on, as part of a conversation.
+An [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that exposes every [MyToolkit](../README.md) tool to MCP-aware clients (Claude Desktop, Claude Code, Cursor, and any other MCP client), so an LLM assistant can format JSON, validate Kubernetes manifests, generate passwords, decode JWTs, and so on, as part of a conversation.
 
 ## Overview
 
@@ -85,21 +85,50 @@ Logs always go to stderr — for the `stdio` transport this is a correctness req
 
 ## Usage with an MCP client
 
+New to MCP? Every client needs to know how to *start* (or connect to) `mytoolkit mcp`, and there are always two ways to tell it that:
+
+- **Client command** — some clients (Claude Code) ship a CLI subcommand that writes the config file for you. Fastest, least error-prone; use it if your client has one.
+- **Manual config file edit** — every MCP client reads its server list from a JSON file. Editing it yourself works everywhere, including clients with no add command (Claude Desktop, Cursor), and is the only option once you need something the command doesn't expose.
+
+Both paths produce the same result: the client starts (or connects to) `mytoolkit mcp` and sees the 16 tools.
+
+Before either path, build the binary once and note its **absolute path** — config files don't reliably resolve `~` or a bare `mytoolkit`, unless it's already on the client's `PATH`:
+
+```
+make build
+readlink -f ./bin/mytoolkit   # copy this path, you'll paste it below
+```
+
 ### stdio (local, the common case)
 
 Most MCP clients run the server as a child process and speak JSON-RPC over its stdin/stdout — nothing needs to be listening on a port.
 
-**Claude Code** — add it as a project- or user-scoped MCP server:
+**Claude Code** (has an add command)
 
-```
-claude mcp add mytoolkit -- /absolute/path/to/mytoolkit mcp
-```
+- Using the command (recommended):
+  ```
+  claude mcp add mytoolkit -- /absolute/path/to/mytoolkit mcp
+  ```
+- Manual config: copy [`examples/claude_code_mcp.json`](examples/claude_code_mcp.json) into your project root as `.mcp.json` (merge it in if one already exists), swapping in the absolute path if `mytoolkit` isn't on your `PATH`.
+- Verify it connected: run `/mcp` inside Claude Code — it should list `mytoolkit` as connected.
 
-or drop [`examples/claude_code_mcp.json`](examples/claude_code_mcp.json) into your project as `.mcp.json`.
+**Claude Desktop** (no add command — config file only)
 
-**Claude Desktop** — merge [`examples/claude_desktop_config.json`](examples/claude_desktop_config.json) into your `claude_desktop_config.json` (Settings → Developer → Edit Config), then restart Claude Desktop.
+1. Open Settings → Developer → Edit Config.
+2. Merge [`examples/claude_desktop_config.json`](examples/claude_desktop_config.json) into `claude_desktop_config.json`, replacing `/absolute/path/to/mytoolkit` with your real path.
+3. Restart Claude Desktop — it only reads this file on startup.
 
-Both example files point at `mytoolkit mcp` with no extra flags, since `stdio` is already the default transport.
+**Cursor** (no add command — config file only)
+
+Cursor reads the same `mcpServers` shape, either project-scoped (`.cursor/mcp.json`) or global (`~/.cursor/mcp.json`, applies to every project).
+
+1. Open Cursor Settings → MCP → "Add new MCP server" (this just opens the JSON file for you to edit — there's no separate wizard).
+2. Merge [`examples/cursor_mcp.json`](examples/cursor_mcp.json) in, again with the absolute path.
+3. Reload the Cursor window (Command Palette → "Reload Window") so it picks up the change.
+
+Every example file above points at `mytoolkit mcp` with no extra flags, since `stdio` is already the default transport.
+
+**If a client shows 0 tools or "disconnected"**: the two most common beginner mistakes are (1) a relative path or bare `mytoolkit` that isn't resolvable from wherever the client's child process runs, and (2) invalid JSON after a manual merge (missing comma, unbalanced braces) — validate with `python3 -m json.tool < path/to/config.json` before restarting the client.
 
 ### Streamable HTTP (remote / shared server)
 
@@ -123,7 +152,7 @@ Then point a client at it:
 claude mcp add --transport http mytoolkit http://localhost:8081/
 ```
 
-or see [`examples/claude_desktop_config_http.json`](examples/claude_desktop_config_http.json) for the Claude Desktop equivalent.
+or see [`examples/claude_desktop_config_http.json`](examples/claude_desktop_config_http.json) for the Claude Desktop equivalent, or [`examples/cursor_mcp_http.json`](examples/cursor_mcp_http.json) for Cursor — merge the latter into `.cursor/mcp.json` (or `~/.cursor/mcp.json`) and reload the window, same manual-edit flow as the stdio case above, just with a `url` instead of a `command`.
 
 ## Examples
 

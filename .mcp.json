@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mytoolkit": {
+      "command": "/home/aecio/git/mygithub/mytoolkit/bin/mytoolkit",
+      "args": ["mcp"]
+    }
+  }
+}

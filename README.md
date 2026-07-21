@@ -190,6 +190,14 @@ See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrap
 
 The dashboard covers every metric the app exposes: HTTP request rate/error-rate by tool and status, request latency percentiles (overall and per-tool), successful-invocation counts per tool (the same data behind `GET /api/v1/metrics/ranking`), and Go runtime/process health (goroutines, memory, GC pauses, open file descriptors, CPU, network I/O). See `.skills/observability/SKILL.md` for the provisioning layout and how to add a panel for a new metric.
 
+| HTTP Traffic | Latency |
+|---|---|
+| ![Grafana dashboard, HTTP Traffic row: total requests, error rate, service up, uptime, request rate by tool and status](images/grafana-dashboard1.png) | ![Grafana dashboard, Latency row: overall and p95 percentiles, average latency by tool](images/grafana-dashboard2.png) |
+
+| Tool Usage + MCP Server | Go Runtime & Process Health |
+|---|---|
+| ![Grafana dashboard, Tool Usage and MCP Server rows: successful invocations by tool, usage ranking, MCP tool calls/sessions](images/grafana-dashboard3.png) | ![Grafana dashboard, Go Runtime & Process Health row: goroutines, memory, CPU, GC pauses, network I/O](images/grafana-dashboard4.png) |
+
 **Note on editing the dashboard while the stack is running**: `observability/mytoolkit-dashboard.json` is bind-mounted as a single file, which some editors/tools replace via write-new-file-then-rename — Docker's bind mount then keeps referencing the old file. If your edits don't show up after Grafana's `updateIntervalSeconds` (30s) or a manual `POST /api/admin/provisioning/dashboards/reload`, run `docker compose restart grafana`.
 
 ## Documentation
@@ -222,7 +230,7 @@ If you change a tool's REST request/response shape, update its `@`-annotations (
 
 ## MCP Server
 
-Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) tool, so MCP-aware clients (Claude Desktop, Claude Code, and others) can call them directly — `mytoolkit mcp` (stdio, the default) or `mytoolkit mcp --transport http --port 8081` (streamable HTTP), reusing the exact same `internal/tools/<name>` functions as the web UI, REST API, and CLI. When running over HTTP, it also exposes `mytoolkit_mcp_*` Prometheus metrics (tool call rate/errors/latency, requests by method, sessions) at `/metrics`, visualized in the Grafana dashboard's "MCP Server" row (see [Observability](#observability-prometheus--grafana) above). See [mcp/README.md](mcp/README.md) for installation, client configuration examples, metrics, and a Mermaid workflow diagram.
+Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) tool, so MCP-aware clients (Claude Desktop, Claude Code, Cursor, and others) can call them directly — `mytoolkit mcp` (stdio, the default) or `mytoolkit mcp --transport http --port 8081` (streamable HTTP), reusing the exact same `internal/tools/<name>` functions as the web UI, REST API, and CLI. When running over HTTP, it also exposes `mytoolkit_mcp_*` Prometheus metrics (tool call rate/errors/latency, requests by method, sessions) at `/metrics`, visualized in the Grafana dashboard's "MCP Server" row (see [Observability](#observability-prometheus--grafana) above). See [mcp/README.md](mcp/README.md) for installation, client configuration examples, metrics, and a Mermaid workflow diagram.
 
 ## Environment variables
 
