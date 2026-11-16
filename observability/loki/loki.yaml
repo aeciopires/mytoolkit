@@ -1,0 +1,67 @@
+# Loki 3.x, single-binary ("monolithic") mode with local filesystem
+# storage — sized for a laptop/docker-compose demo, not production.
+# Logs are pushed by Grafana Alloy (observability/alloy/config.alloy).
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # trace_id/span_id travel as structured metadata (not labels: they're
+  # unbounded), so Grafana can link a log line to its trace.
+  allow_structured_metadata: true
+  # Powers Grafana's Logs Drilldown app and the "detected_level" field.
+  volume_enabled: true
+  discover_log_levels: true
+  metric_aggregation_enabled: true
+  retention_period: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+pattern_ingester:
+  enabled: true
+  metric_aggregation:
+    loki_address: localhost:3100
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+frontend:
+  encoding: protobuf
+
+analytics:
+  reporting_enabled: false

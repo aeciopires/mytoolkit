@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleURLEncode(t *testing.T) {
-	_, out, err := handleURLEncode(context.TODO(), nil, urlEncodeIn{Input: "a b"})
+	_, out, err := handleURLEncode(t.Context(), nil, urlEncodeIn{Input: "a b"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +15,7 @@ func TestHandleURLEncode(t *testing.T) {
 }
 
 func TestHandleURLEncodeDecode(t *testing.T) {
-	_, out, err := handleURLEncode(context.TODO(), nil, urlEncodeIn{Input: "a+b", Decode: true})
+	_, out, err := handleURLEncode(t.Context(), nil, urlEncodeIn{Input: "a+b", Decode: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

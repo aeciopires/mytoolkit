@@ -21,12 +21,15 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.service.port | quote }}
         prometheus.io/path: "/metrics"
+        # Roll the pods when the ConfigMap changes (e.g. enabling tracing).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "mytoolkit.selectorLabels" . | nindent 8 }}
     spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "mytoolkit.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

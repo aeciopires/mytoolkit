@@ -35,6 +35,14 @@ kubectl port-forward svc/{{ template "chart.name" . }} 8080:8080 -n {{ template 
 
 Open the browser and access the URL: http://localhost:8080
 
+## Health checks, logs and tracing
+
+- **Probes**: the web Deployment and (with `mcp.enabled`) the MCP Deployment both use `httpGet` probes — `livenessProbe.path` (`/healthz`) and `readinessProbe.path` (`/readyz`) on their own container port. `/readyz` returns `503` from the moment the pod receives SIGTERM; the app then keeps serving for `env.shutdownDelay` (default `5s`) so the pod leaves the Service endpoints, and drains in-flight requests for up to 20s — keep `terminationGracePeriodSeconds` above `shutdownDelay + 20s`.
+- **helm test**: `make helm-test` (or `helm test <release>`) calls `/healthz` and `/readyz` through the web Service, and through the MCP Service when `mcp.enabled=true`.
+- **Logs**: JSON, one object per line, on stderr — ready for any cluster log agent (Grafana Alloy, Fluent Bit, Vector, ...) without a parser config beyond "JSON".
+- **Tracing**: `--set tracing.enabled=true --set tracing.endpoint=http://<otlp-collector>:4318` exports OpenTelemetry traces (OTLP/HTTP) from both Deployments, with `service.name` `mytoolkit` / `mytoolkit-mcp`; `tracing.sampler`/`samplerArg`/`resourceAttributes` map to the standard `OTEL_*` variables. A ConfigMap change rolls the pods (`checksum/config` annotation).
+- **Metrics**: Prometheus scrape annotations on both pods, plus optional `ServiceMonitor`s (`metrics.serviceMonitor.enabled`).
+
 ## Uninstalling
 
 ```bash

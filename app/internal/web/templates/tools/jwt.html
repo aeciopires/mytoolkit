@@ -3,23 +3,17 @@
   <h1>{{.Tool.Emoji}} {{.Tool.Name}}</h1>
   <p>{{.Tool.Description}}</p>
 </section>
-<div class="tool-panel" data-slug="jwt">
-  <div class="panel-col">
-    <label for="tool-input">Token (decode) / Claims JSON (encode)</label>
-    <textarea id="tool-input" placeholder="Paste a JWT to decode, or claims JSON to encode…"></textarea>
-  </div>
-  <div class="panel-col">
-    <label for="tool-output">Result</label>
-    <textarea id="tool-output" readonly></textarea>
-  </div>
-  <div class="options-row">
+<div class="tool-panel" data-slug="jwt" id="jwt-panel">
+  <div class="options-row" style="grid-column:1/-1;">
     <label>Mode
-      <select name="mode" data-option>
-        <option value="decode">Decode</option>
-        <option value="encode">Encode</option>
+      <select name="mode" data-option id="jwt-mode">
+        <option value="decode">Decode / Verify</option>
+        <option value="encode">Encode (Sign)</option>
+        <option value="keygen">Generate Key</option>
+        <option value="jwks">Build JWKS</option>
       </select>
     </label>
-    <label>Algorithm
+    <label data-modes="encode keygen">Algorithm
       <select name="algorithm" data-option>
         <option value="HS256">HS256</option>
         <option value="HS384">HS384</option>
@@ -36,17 +30,127 @@
         <option value="EdDSA">EdDSA</option>
       </select>
     </label>
-    <label>Secret <input type="text" name="secret" data-option placeholder="HS256/384/512 only"></label>
+    <label data-modes="jwks">Algorithm
+      <select name="algorithm" data-option>
+        <option value="">Auto (from key type)</option>
+        <option value="RS256">RS256</option>
+        <option value="RS384">RS384</option>
+        <option value="RS512">RS512</option>
+        <option value="PS256">PS256</option>
+        <option value="PS384">PS384</option>
+        <option value="PS512">PS512</option>
+        <option value="ES256">ES256</option>
+        <option value="ES384">ES384</option>
+        <option value="ES512">ES512</option>
+        <option value="EdDSA">EdDSA</option>
+      </select>
+    </label>
+    <label data-modes="keygen">RSA bits
+      <select name="bits" data-option>
+        <option value="2048">2048</option>
+        <option value="3072">3072</option>
+        <option value="4096">4096</option>
+      </select>
+    </label>
+    <label data-modes="decode encode">Secret <input type="text" name="secret" data-option placeholder="HS256/384/512 only" autocomplete="off"></label>
+    <label data-modes="encode keygen jwks">Key ID (kid) <input type="text" name="kid" data-option placeholder="default: JWK thumbprint / JWK kid"></label>
   </div>
-  <div class="panel-col" style="grid-column:1/-1;">
-    <label for="jwt-key">Key (PEM) — private key to Encode, public key to verify a Decode. Required for RS*/PS*/ES*/EdDSA, unused for HS*.</label>
-    <textarea id="jwt-key" name="key" data-option placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="min-height:120px;"></textarea>
+
+  <div class="options-row" data-modes="encode" style="grid-column:1/-1;">
+    <label>Issuer (iss) <input type="text" name="issuer" data-option></label>
+    <label>Subject (sub) <input type="text" name="subject" data-option></label>
+    <label>Audience (aud) <input type="text" name="audience" data-option placeholder="api, web"></label>
+    <label>Expires in <input type="text" name="expires_in" data-option placeholder="1h, 30m, 7d" style="width:7rem;"></label>
+    <label>Not before <input type="text" name="not_before" data-option placeholder="0s, -30s" style="width:7rem;"></label>
+    <label><input type="checkbox" name="issued_at" data-option> Issued at (iat)</label>
+    <label><input type="checkbox" name="jwt_id" data-option> Random JWT ID (jti)</label>
   </div>
+
+  <div class="panel-col" data-modes="decode encode jwks">
+    <label for="tool-input" id="jwt-input-label">Token</label>
+    <textarea id="tool-input" placeholder="Paste a JWT to decode…"></textarea>
+  </div>
+  <div class="panel-col" id="jwt-output-col">
+    <label for="tool-output">Result</label>
+    <textarea id="tool-output" readonly></textarea>
+  </div>
+
+  <div class="panel-col" data-modes="encode" style="grid-column:1/-1;">
+    <label for="jwt-claims">Custom claims — one <code>name=value</code> per line. Repeat a name (or use <code>name[]=value</code>) for a list of strings.</label>
+    <textarea id="jwt-claims" name="claims" data-option placeholder="role=admin&#10;groups=dev&#10;groups=ops&#10;scopes[]=read" style="min-height:96px;"></textarea>
+  </div>
+
+  <div class="panel-col" data-modes="decode encode" style="grid-column:1/-1;">
+    <label for="jwt-key" id="jwt-key-label">Key</label>
+    <textarea id="jwt-key" name="key" data-option placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----" style="min-height:120px;"></textarea>
+  </div>
+
   <div class="panel-actions">
+    <button class="pill-btn" type="button" data-action="generate" data-modes="keygen">Generate</button>
     <button class="pill-btn" type="button" data-action="copy">Copy</button>
     <button class="pill-btn" type="button" data-action="reset">Reset</button>
   </div>
   <p class="error-banner" id="tool-error" hidden></p>
-  <p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Secrets and keys are used in-memory for this request only and are never stored server-side.</p>
+  <p style="grid-column:1/-1;color:var(--color-text-muted);font-size:0.85rem;">Everything runs offline — no key, token or JWKS is ever fetched from the network. Secrets and keys are used in-memory for this request only and are never stored server-side. For production signing keys, prefer <code>mytoolkit jwt keygen</code> locally so the private key never leaves your machine.</p>
 </div>
+{{end}}
+
+{{define "extra-scripts"}}
+<script>
+(function () {
+  var panel = document.getElementById('jwt-panel');
+  var mode = document.getElementById('jwt-mode');
+  var inputLabel = document.getElementById('jwt-input-label');
+  var input = document.getElementById('tool-input');
+  var keyLabel = document.getElementById('jwt-key-label');
+  var key = document.getElementById('jwt-key');
+  var output = document.getElementById('tool-output');
+  var outputCol = document.getElementById('jwt-output-col');
+
+  var copy = {
+    decode: {
+      input: ['Token', 'Paste a JWT to decode…'],
+      key: ['Key — public key / certificate (PEM), JWK or JWKS to verify RS*/PS*/ES*/EdDSA tokens. A JWKS key is matched by the token\'s kid. Unused for HS*.',
+            '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\nor {"keys":[...]}']
+    },
+    encode: {
+      input: ['Base claims JSON (optional)', '{"sub":"123","admin":true}'],
+      key: ['Key — private key (PEM) or private JWK to sign RS*/PS*/ES*/EdDSA. Unused for HS*.',
+            '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----']
+    },
+    jwks: {
+      input: ['Keys — one or more PEM keys/certificates (public or private), a JWK or a JWKS', '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----']
+    }
+  };
+
+  // Hidden controls are also disabled, so tool-common.js's collectOptions()
+  // skips them — e.g. the two "algorithm" selects never both get sent.
+  function applyMode() {
+    var m = mode.value;
+    panel.querySelectorAll('[data-modes]').forEach(function (el) {
+      var on = el.dataset.modes.split(' ').indexOf(m) !== -1;
+      el.hidden = !on;
+      el.querySelectorAll('[data-option]').forEach(function (c) { c.disabled = !on; });
+      if (el.matches('[data-option]')) el.disabled = !on;
+    });
+    if (copy[m]) {
+      inputLabel.textContent = copy[m].input[0];
+      input.placeholder = copy[m].input[1];
+      if (copy[m].key) {
+        keyLabel.textContent = copy[m].key[0];
+        key.placeholder = copy[m].key[1];
+      }
+    }
+    outputCol.style.gridColumn = m === 'keygen' ? '1 / -1' : '';
+    output.style.minHeight = m === 'keygen' ? '420px' : '';
+  }
+
+  mode.addEventListener('change', function () {
+    input.value = '';
+    output.value = '';
+    applyMode();
+  });
+  applyMode();
+})();
+</script>
 {{end}}

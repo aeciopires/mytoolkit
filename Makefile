@@ -78,6 +78,10 @@ check-tools: ## Verify required development/runtime tools are installed
 		echo "[MISSING] docker compose (plugin)"; \
 		missing="$$missing docker-compose-plugin"; \
 	fi; \
+	if command -v helm >/dev/null 2>&1 && ! helm version --short 2>/dev/null | grep -q '^v4\.'; then \
+		echo "[WRONG]   helm $$(helm version --short 2>/dev/null) - Helm 4 is required (Helm 3 is not supported)"; \
+		missing="$$missing helm-v4"; \
+	fi; \
 	if [ -n "$$missing" ]; then \
 		echo ""; echo "Missing tools:$$missing"; \
 		exit 1; \
@@ -110,19 +114,25 @@ docker-push: ## Prompt for Docker Hub credentials and push a multi-arch (amd64+a
 	docker logout >/dev/null
 
 .PHONY: compose-up
-compose-up: ## Start the app via docker compose
-	docker compose up -d --build
+compose-up: ## Start the app + observability stack (Prometheus, Loki, Tempo, Jaeger, Alloy, Grafana) via docker compose
+	VERSION=$(VERSION) docker compose up -d --build
 
 .PHONY: compose-down
-compose-down: ## Stop the app started via docker compose
-	docker compose down
+compose-down: ## Stop the docker compose stack (keeps the data volumes; add -v by hand to wipe them)
+	docker compose --profile mcp down
+
+.PHONY: helm-check-version
+helm-check-version: ## Fail unless the helm on PATH is Helm 4 (Helm 3 is not supported)
+	@helm version --short 2>/dev/null | grep -q '^v4\.' || { \
+		echo "Helm 4 is required, found: $$(helm version --short 2>/dev/null || echo none). See https://helm.sh/docs/intro/install/ or run 'mise install'." >&2; \
+		exit 1; }
 
 .PHONY: helm-lint
-helm-lint: ## Lint the Helm chart
+helm-lint: helm-check-version ## Lint the Helm chart
 	helm lint helm/$(APP_NAME)
 
 .PHONY: helm-template
-helm-template: ## Render the Helm chart locally
+helm-template: helm-check-version ## Render the Helm chart locally
 	helm template $(APP_NAME) helm/$(APP_NAME) --set ingress.enabled=true --set autoscaling.enabled=true
 
 .PHONY: helm-set-appversion
@@ -143,17 +153,17 @@ kind-load: ## Load the local Docker image into the kind-multinodes cluster
 	kind load docker-image $(IMAGE):$(TAG) --name $(KIND_CLUSTER)
 
 .PHONY: helm-install
-helm-install: ## helm upgrade --install against $(KUBE_CONTEXT) / namespace $(NAMESPACE)
+helm-install: helm-check-version ## helm upgrade --install against $(KUBE_CONTEXT) / namespace $(NAMESPACE)
 	helm upgrade --install $(APP_NAME) helm/$(APP_NAME) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--kube-context $(KUBE_CONTEXT)
 
 .PHONY: helm-uninstall
-helm-uninstall: ## helm uninstall from $(KUBE_CONTEXT) / namespace $(NAMESPACE)
+helm-uninstall: helm-check-version ## helm uninstall from $(KUBE_CONTEXT) / namespace $(NAMESPACE)
 	helm uninstall $(APP_NAME) --namespace $(NAMESPACE) --kube-context $(KUBE_CONTEXT)
 
 .PHONY: helm-test
-helm-test: ## Run helm test (hits /healthz) against the installed release
+helm-test: helm-check-version ## Run helm test (hits /healthz) against the installed release
 	helm test $(APP_NAME) --namespace $(NAMESPACE) --kube-context $(KUBE_CONTEXT)
 
 .PHONY: clean

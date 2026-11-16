@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleTextCount(t *testing.T) {
-	_, counts, err := handleTextCount(context.TODO(), nil, textCountIn{Input: "hello world\nsecond line"})
+	_, counts, err := handleTextCount(t.Context(), nil, textCountIn{Input: "hello world\nsecond line"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

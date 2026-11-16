@@ -1,14 +1,13 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aeciopires/mytoolkit/internal/tools/jsontree"
 )
 
 func TestHandleJSONTree(t *testing.T) {
-	_, out, err := handleJSONTree(context.TODO(), nil, jsonTreeIn{Input: `{"a":1}`})
+	_, out, err := handleJSONTree(t.Context(), nil, jsonTreeIn{Input: `{"a":1}`})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -22,7 +21,7 @@ func TestHandleJSONTree(t *testing.T) {
 }
 
 func TestHandleJSONTreeEmptyInput(t *testing.T) {
-	_, _, err := handleJSONTree(context.TODO(), nil, jsonTreeIn{})
+	_, _, err := handleJSONTree(t.Context(), nil, jsonTreeIn{})
 	if err == nil {
 		t.Fatal("expected an error for empty input")
 	}

@@ -22,7 +22,11 @@ import (
 // @schemes http https
 func main() {
 	if err := cli.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		// serve/mcp already logged it as JSON; everything else is a
+		// one-shot CLI command whose user wants a readable message.
+		if !cli.AlreadyLogged(err) {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+		}
 		os.Exit(1)
 	}
 }

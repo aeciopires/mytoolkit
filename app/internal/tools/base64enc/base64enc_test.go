@@ -2,8 +2,6 @@ package base64enc
 
 import "testing"
 
-func boolPtr(b bool) *bool { return &b }
-
 func TestProcess(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -14,8 +12,8 @@ func TestProcess(t *testing.T) {
 	}{
 		{"encode standard", "hello world", Options{}, "aGVsbG8gd29ybGQ=", false},
 		{"decode standard", "aGVsbG8gd29ybGQ=", Options{Decode: true}, "hello world", false},
-		{"encode no padding", "hello world", Options{Padding: boolPtr(false)}, "aGVsbG8gd29ybGQ", false},
-		{"decode no padding", "aGVsbG8gd29ybGQ", Options{Decode: true, Padding: boolPtr(false)}, "hello world", false},
+		{"encode no padding", "hello world", Options{Padding: new(false)}, "aGVsbG8gd29ybGQ", false},
+		{"decode no padding", "aGVsbG8gd29ybGQ", Options{Decode: true, Padding: new(false)}, "hello world", false},
 		{"encode url variant", "a~b", Options{Variant: "url"}, "YX5i", false},
 		{"empty input encode", "", Options{}, "", false},
 		{"empty input decode", "", Options{Decode: true}, "", false},

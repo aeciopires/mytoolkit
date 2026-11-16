@@ -3,7 +3,10 @@
 // HTTP status mapping are defined once instead of per feature.
 package apperr
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Error is a structured application error with a stable machine-readable
 // code and the HTTP status it maps to.
@@ -33,10 +36,8 @@ var ErrEmptyInput = New(400, "EMPTY_INPUT", "input must not be empty")
 // OneOf validates that value is one of allowed, returning an Error otherwise.
 // Used by every Mode/Algorithm-style enum across tools.
 func OneOf[T comparable](field string, value T, allowed ...T) error {
-	for _, a := range allowed {
-		if value == a {
-			return nil
-		}
+	if slices.Contains(allowed, value) {
+		return nil
 	}
-	return Newf(400, "INVALID_"+"OPTION", "%s must be one of %v, got %v", field, allowed, value)
+	return Newf(400, "INVALID_OPTION", "%s must be one of %v, got %v", field, allowed, value)
 }

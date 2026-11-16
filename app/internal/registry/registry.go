@@ -18,7 +18,7 @@ var Tools = []Tool{
 	{Slug: "json-format", Name: "JSON Formatter", Emoji: "📄", Description: "Format and organize JSON documents to improve readability."},
 	{Slug: "yaml-format", Name: "YAML Formatter", Emoji: "📝", Description: "Format YAML files with consistent indentation."},
 	{Slug: "password-gen", Name: "Password Generator", Emoji: "🔐", Description: "Generate strong, customizable passwords."},
-	{Slug: "jwt", Name: "JWT Encode/Decode", Emoji: "🎫", Description: "Encode and decode JSON Web Tokens (JWT) for inspection and testing."},
+	{Slug: "jwt", Name: "JWT Encode/Decode", Emoji: "🎫", Description: "Decode/verify and sign JSON Web Tokens (JWT) with custom claims, generate signing keys and JWKS — fully offline."},
 	{Slug: "qrcode", Name: "QR Code Generator", Emoji: "📱", Description: "Generate QR codes from text, URLs, or unicode content."},
 	{Slug: "text-count", Name: "Character, Word & Line Counter", Emoji: "📊", Description: "Count characters, words, and lines in any text."},
 	{Slug: "url-encode", Name: "URL Encode/Decode", Emoji: "🌐", Description: "Encode and decode URLs according to web standards."},

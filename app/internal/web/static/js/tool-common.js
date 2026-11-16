@@ -16,7 +16,9 @@
     var opts = {};
     panel.querySelectorAll('[data-option]').forEach(function (el) {
       var name = el.name;
-      if (!name) return;
+      // Like a native <form> submission, disabled controls are not sent —
+      // lets a page swap between same-named controls per mode (see jwt.html).
+      if (!name || el.disabled) return;
       if (el.type === 'checkbox') {
         opts[name] = el.checked;
       } else if (el.type === 'number') {

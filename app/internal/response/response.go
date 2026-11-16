@@ -48,11 +48,10 @@ func WriteSuccess(w http.ResponseWriter, tool string, data any, duration time.Du
 // WriteError writes the shared error envelope, mapping *apperr.Error to its
 // status/code and falling back to 500/INTERNAL for any other error.
 func WriteError(w http.ResponseWriter, err error) {
-	var ae *apperr.Error
 	status := http.StatusInternalServerError
 	code := "INTERNAL"
 	msg := "internal server error"
-	if errors.As(err, &ae) {
+	if ae, ok := errors.AsType[*apperr.Error](err); ok {
 		status = ae.Status
 		code = ae.Code
 		msg = ae.Message
@@ -67,8 +66,7 @@ func WriteError(w http.ResponseWriter, err error) {
 
 // StatusOf returns the HTTP status an error maps to, for logging/metrics.
 func StatusOf(err error) int {
-	var ae *apperr.Error
-	if errors.As(err, &ae) {
+	if ae, ok := errors.AsType[*apperr.Error](err); ok {
 		return ae.Status
 	}
 	return http.StatusInternalServerError

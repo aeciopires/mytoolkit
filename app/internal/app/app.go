@@ -16,6 +16,9 @@ import (
 // server-rendered web UI.
 func New(toolHandlers httpapi.ToolHandlers) http.Handler {
 	r := chi.NewRouter()
+	// Tracing first, so a recovered panic's 500 is recorded on the request
+	// span and the panic log line carries its trace_id.
+	r.Use(mw.Tracing)
 	r.Use(mw.Recover)
 
 	httpapi.Register(r, toolHandlers)

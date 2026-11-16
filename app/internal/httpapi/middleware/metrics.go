@@ -11,7 +11,8 @@ import (
 )
 
 // Metrics records the shared request-count and duration Prometheus metrics,
-// and the usage-ranking counter for the matched tool slug.
+// and the usage-ranking counter for the matched tool slug. The duration
+// histogram carries a trace_id exemplar when the request is traced.
 func Metrics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -24,7 +25,7 @@ func Metrics(next http.Handler) http.Handler {
 		}
 		duration := time.Since(start)
 		metrics.RequestsTotal.WithLabelValues(slug, r.Method, strconv.Itoa(sw.status)).Inc()
-		metrics.RequestDuration.WithLabelValues(slug, r.Method).Observe(duration.Seconds())
+		metrics.Observe(r.Context(), metrics.RequestDuration.WithLabelValues(slug, r.Method), duration.Seconds())
 		if sw.status < 400 {
 			metrics.RecordUsage(slug)
 		}

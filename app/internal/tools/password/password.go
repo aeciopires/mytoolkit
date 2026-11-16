@@ -37,13 +37,7 @@ func Generate(opts Options) (string, error) {
 	}
 
 	classes := buildClasses(opts)
-	pool := ""
-	for _, c := range classes {
-		if c == "" {
-			continue
-		}
-		pool += c
-	}
+	pool := strings.Join(classes, "")
 	if pool == "" {
 		return "", apperr.New(400, "NO_CHARSET_SELECTED", "at least one character class must be enabled and non-empty after exclusions")
 	}

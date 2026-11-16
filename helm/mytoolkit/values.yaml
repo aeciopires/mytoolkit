@@ -97,8 +97,25 @@ tolerations: []
 affinity: {}
 
 env:
-  # -- Log level: debug, info, warn, error (MYTOOLKIT_LOG_LEVEL)
+  # -- Log level: debug, info, warn, error (MYTOOLKIT_LOG_LEVEL). Logs are always JSON on stderr
   logLevel: info
+  # -- After SIGTERM, keep serving this long with /readyz returning 503 before closing the listener, so the pod leaves the Service endpoints first (MYTOOLKIT_SHUTDOWN_DELAY, a Go duration). Must stay below terminationGracePeriodSeconds minus the 20s request drain
+  shutdownDelay: 5s
+
+# -- Pod terminationGracePeriodSeconds for the web and MCP Deployments; must exceed env.shutdownDelay + 20s (in-flight request drain)
+terminationGracePeriodSeconds: 30
+
+tracing:
+  # -- Export OpenTelemetry traces (OTLP/HTTP) from the web and MCP Deployments. Disabled by default; requires an OTLP endpoint (Grafana Alloy, an OpenTelemetry Collector, Tempo or Jaeger)
+  enabled: false
+  # -- OTLP/HTTP endpoint (OTEL_EXPORTER_OTLP_ENDPOINT), e.g. http://alloy.monitoring:4318
+  endpoint: ""
+  # -- Trace sampler (OTEL_TRACES_SAMPLER): parentbased_always_on, parentbased_traceidratio, always_off, ...
+  sampler: parentbased_always_on
+  # -- Sampler argument (OTEL_TRACES_SAMPLER_ARG), e.g. "0.1" for 10% with parentbased_traceidratio
+  samplerArg: ""
+  # -- Extra resource attributes (OTEL_RESOURCE_ATTRIBUTES), e.g. deployment.environment.name=prod
+  resourceAttributes: ""
 
 mcp:
   # -- Deploy a second Deployment/Service running the MCP server over streamable HTTP (same image, disabled by default; see mcp/README.md)
@@ -170,9 +187,9 @@ updateStrategy:
     maxSurge: 6
     maxUnavailable: 0
 
-# -- Health check on creation pod
+# -- Readiness probe (httpGet) shared by the web and MCP Deployments; /readyz returns 503 once graceful shutdown starts so the pod leaves the Service endpoints while requests drain
 readinessProbe:
-  # -- Path of health check of application
+  # -- Readiness endpoint, served by both `serve` and `mcp --transport http`
   path: /readyz
   # -- Number of seconds after the container has started before readiness
   initialDelaySeconds: 10
@@ -187,9 +204,9 @@ readinessProbe:
   # In case of readiness probe the Pod will be marked Unready
   failureThreshold: 3
 
-# -- Health check continuously
+# -- Liveness probe (httpGet) shared by the web and MCP Deployments
 livenessProbe:
-  # -- Path of health check of application
+  # -- Liveness endpoint, served by both `serve` and `mcp --transport http`
   path: /healthz
   # -- Number of seconds after the container has started before liveness
   initialDelaySeconds: 10

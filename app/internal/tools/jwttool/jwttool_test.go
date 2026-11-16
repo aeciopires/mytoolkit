@@ -13,7 +13,7 @@ import (
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
 	claims := map[string]any{"sub": "123"}
-	token, err := Encode(claims, "mysecret", "", "HS256")
+	token, err := Encode(claims, EncodeOptions{Secret: "mysecret", Algorithm: "HS256"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestDecodeWrongSecret(t *testing.T) {
-	token, err := Encode(map[string]any{"sub": "123"}, "mysecret", "", "HS256")
+	token, err := Encode(map[string]any{"sub": "123"}, EncodeOptions{Secret: "mysecret", Algorithm: "HS256"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestDecodeWrongSecret(t *testing.T) {
 }
 
 func TestDecodeWithoutSecret(t *testing.T) {
-	token, _ := Encode(map[string]any{"sub": "123"}, "mysecret", "", "HS256")
+	token, _ := Encode(map[string]any{"sub": "123"}, EncodeOptions{Secret: "mysecret", Algorithm: "HS256"})
 	result, err := Decode(token, "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -65,19 +65,19 @@ func TestDecodeMalformedToken(t *testing.T) {
 }
 
 func TestEncodeEmptyClaims(t *testing.T) {
-	if _, err := Encode(map[string]any{}, "secret", "", "HS256"); err == nil {
+	if _, err := Encode(map[string]any{}, EncodeOptions{Secret: "secret", Algorithm: "HS256"}); err == nil {
 		t.Error("expected error for empty claims")
 	}
 }
 
 func TestEncodeUnsupportedAlgorithm(t *testing.T) {
-	if _, err := Encode(map[string]any{"a": 1}, "secret", "", "RS9000"); err == nil {
+	if _, err := Encode(map[string]any{"a": 1}, EncodeOptions{Secret: "secret", Algorithm: "RS9000"}); err == nil {
 		t.Error("expected error for unsupported algorithm")
 	}
 }
 
 func TestEncodeDefaultAlgorithmIsHS256(t *testing.T) {
-	token, err := Encode(map[string]any{"a": 1}, "secret", "", "")
+	token, err := Encode(map[string]any{"a": 1}, EncodeOptions{Secret: "secret", Algorithm: ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestEncodeDecodeRoundTripRSA(t *testing.T) {
 	priv, pub := genRSAKeyPEM(t)
 	for _, alg := range []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"} {
 		t.Run(alg, func(t *testing.T) {
-			token, err := Encode(map[string]any{"sub": "rsa"}, "", priv, alg)
+			token, err := Encode(map[string]any{"sub": "rsa"}, EncodeOptions{Key: priv, Algorithm: alg})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -172,7 +172,7 @@ func TestEncodeDecodeRoundTripECDSA(t *testing.T) {
 	priv, pub := genECKeyPEM(t)
 	// ES256 needs a P-256 key (what genECKeyPEM produces); this exercises
 	// the ECDSA code path end-to-end, not every curve/algorithm pairing.
-	token, err := Encode(map[string]any{"sub": "ec"}, "", priv, "ES256")
+	token, err := Encode(map[string]any{"sub": "ec"}, EncodeOptions{Key: priv, Algorithm: "ES256"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestEncodeDecodeRoundTripECDSA(t *testing.T) {
 
 func TestEncodeDecodeRoundTripEdDSA(t *testing.T) {
 	priv, pub := genEdKeyPEM(t)
-	token, err := Encode(map[string]any{"sub": "ed"}, "", priv, "EdDSA")
+	token, err := Encode(map[string]any{"sub": "ed"}, EncodeOptions{Key: priv, Algorithm: "EdDSA"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestEncodeDecodeRoundTripEdDSA(t *testing.T) {
 func TestDecodeRSAWrongPublicKeyFails(t *testing.T) {
 	priv, _ := genRSAKeyPEM(t)
 	_, otherPub := genRSAKeyPEM(t)
-	token, err := Encode(map[string]any{"sub": "rsa"}, "", priv, "RS256")
+	token, err := Encode(map[string]any{"sub": "rsa"}, EncodeOptions{Key: priv, Algorithm: "RS256"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,14 +217,14 @@ func TestDecodeRSAWrongPublicKeyFails(t *testing.T) {
 }
 
 func TestEncodeRSAInvalidKeyPEM(t *testing.T) {
-	if _, err := Encode(map[string]any{"a": 1}, "", "not a pem key", "RS256"); err == nil {
+	if _, err := Encode(map[string]any{"a": 1}, EncodeOptions{Key: "not a pem key", Algorithm: "RS256"}); err == nil {
 		t.Error("expected error for invalid RSA private key PEM")
 	}
 }
 
 func TestDecodeSecretAgainstAsymmetricTokenFailsCleanly(t *testing.T) {
 	priv, _ := genRSAKeyPEM(t)
-	token, err := Encode(map[string]any{"sub": "rsa"}, "", priv, "RS256")
+	token, err := Encode(map[string]any{"sub": "rsa"}, EncodeOptions{Key: priv, Algorithm: "RS256"})
 	if err != nil {
 		t.Fatal(err)
 	}

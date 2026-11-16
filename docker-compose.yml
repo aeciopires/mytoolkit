@@ -1,8 +1,37 @@
+# MyToolkit + a full observability stack (metrics, logs and traces):
+#
+#   mytoolkit ──/metrics (scrape)──────────────────────────► Prometheus ─┐
+#       │  stderr JSON logs ─► Docker ─► Alloy ─► Loki ─────────────────┤
+#       └─ OTLP/HTTP traces ─────────► Alloy ─┬► Tempo ─(span metrics)─►├─► Grafana
+#                                             └► Jaeger ────────────────┘
+#
+#   docker compose up -d --build
+#
+#   App ........ http://localhost:8080      Grafana ... http://localhost:3000 (admin/admin)
+#   Prometheus . http://localhost:9090      Jaeger UI . http://localhost:16686
+#   Alloy UI ... http://localhost:12345     Tempo/Loki: APIs only (ports 3200/3100)
+#
+# Every container logs JSON (one object per line) to stdout/stderr — MyToolkit
+# via zerolog, the stack components via their own log-format flags below — so
+# Alloy parses all of them with one json stage (observability/alloy/config.alloy).
+#
+# See README.md's "Observability" section and .skills/observability/SKILL.md.
+
+x-otel-env: &otel-env
+  # Tracing is opt-in (internal/telemetry): setting an OTLP endpoint turns it on.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy:4318"
+  OTEL_TRACES_SAMPLER: "parentbased_always_on"
+  OTEL_RESOURCE_ATTRIBUTES: "deployment.environment.name=docker-compose"
+
 services:
   mytoolkit:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # `make compose-up` passes the repo's VERSION file; plain
+        # `docker compose up` falls back to "dev" (shows in every log line).
+        VERSION: ${VERSION:-dev}
     image: mytoolkit:latest
     ports:
       - "8080:8080"
@@ -10,13 +39,16 @@ services:
       - path: .env
         required: false
     environment:
+      <<: *otel-env
       MYTOOLKIT_HOST: "0.0.0.0"
+      OTEL_SERVICE_NAME: "mytoolkit"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/mytoolkit", "healthcheck"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 5s
     networks:
       - mynet
 
@@ -30,6 +62,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # `make compose-up` passes the repo's VERSION file; plain
+        # `docker compose up` falls back to "dev" (shows in every log line).
+        VERSION: ${VERSION:-dev}
     image: mytoolkit:latest
     command: ["mcp", "--transport", "http", "--port", "8081"]
     ports:
@@ -38,16 +74,102 @@ services:
       - path: .env
         required: false
     environment:
+      <<: *otel-env
       MYTOOLKIT_HOST: "0.0.0.0"
+      OTEL_SERVICE_NAME: "mytoolkit-mcp"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/mytoolkit", "healthcheck", "--mcp"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - mynet
+
+  # Collection agent: Docker container logs -> Loki, OTLP traces -> Tempo + Jaeger.
+  alloy:
+    image: grafana/alloy:v1.22.0
+    container_name: alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=generally-available
+    environment:
+      # Only this Compose project's containers are shipped to Loki.
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-mytoolkit}
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"  # Alloy UI (pipeline graph, component health)
+      - "4317:4317"    # OTLP gRPC (traces from apps running on the host)
+      - "4318:4318"    # OTLP HTTP
+    depends_on:
+      - loki
+      - tempo
+      - jaeger
+    restart: always
+    networks:
+      - mynet
+
+  loki:
+    image: grafana/loki:3.7.10
+    container_name: loki
+    command: ["-config.file=/etc/loki/loki.yaml", "-log.format=json"]
+    volumes:
+      - ./observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    restart: always
+    networks:
+      - mynet
+
+  tempo:
+    image: grafana/tempo:3.1.1
+    container_name: tempo
+    command: ["-target=all", "-config.file=/etc/tempo/tempo.yaml"]
+    # The image runs as uid 10001; the named volume must be writable by it.
+    user: "10001"
+    volumes:
+      - ./observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
+    restart: always
+    networks:
+      - mynet
+
+  # Jaeger v2 all-in-one (in-memory storage), receiving the same spans as Tempo.
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    container_name: jaeger
+    # Built-in all-in-one config, with its own logs switched to JSON.
+    command: ["--set=service.telemetry.logs.encoding=json"]
+    ports:
+      - "16686:16686"  # Jaeger UI / query API
+    restart: always
     networks:
       - mynet
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.16.0
     container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Tempo's metrics generator remote-writes span metrics / service graph.
+      - --web.enable-remote-write-receiver
+      # Keep the trace_id exemplars MyToolkit attaches to its latency histograms.
+      - --enable-feature=exemplar-storage
+      - --log.format=json
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     depends_on:
@@ -57,20 +179,40 @@ services:
       - mynet
 
   grafana:
-    image: grafana/grafana-oss
+    image: grafana/grafana:13.3.1
     container_name: grafana
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Jaeger v2.2x serves only the api_v3 query API: the Grafana Jaeger
+      # data source must use it instead of the removed legacy /api/* endpoints.
+      - GF_FEATURE_TOGGLES_ENABLE=jaegerEnableGrpcEndpoint
+      - GF_LOG_MODE=console
+      - GF_LOG_CONSOLE_FORMAT=json
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
     volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning
-      - ./observability/mytoolkit-dashboard.json:/var/lib/grafana/dashboards/mytoolkit-dashboard.json
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/mytoolkit-dashboard.json:/var/lib/grafana/dashboards/mytoolkit-dashboard.json:ro
+      - ./observability/mytoolkit-logs-dashboard.json:/var/lib/grafana/dashboards/mytoolkit-logs-dashboard.json:ro
+      - ./observability/mytoolkit-traces-dashboard.json:/var/lib/grafana/dashboards/mytoolkit-traces-dashboard.json:ro
+      - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
+      - loki
+      - tempo
+      - jaeger
     restart: always
     networks:
       - mynet
+
+volumes:
+  alloy-data:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   mynet:

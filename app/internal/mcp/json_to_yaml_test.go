@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleJSONToYAML(t *testing.T) {
-	_, out, err := handleJSONToYAML(context.TODO(), nil, jsonToYAMLIn{Input: `{"a":1}`})
+	_, out, err := handleJSONToYAML(t.Context(), nil, jsonToYAMLIn{Input: `{"a":1}`})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +15,7 @@ func TestHandleJSONToYAML(t *testing.T) {
 }
 
 func TestHandleJSONToYAMLInvalidJSON(t *testing.T) {
-	_, _, err := handleJSONToYAML(context.TODO(), nil, jsonToYAMLIn{Input: "{not json"})
+	_, _, err := handleJSONToYAML(t.Context(), nil, jsonToYAMLIn{Input: "{not json"})
 	if err == nil {
 		t.Fatal("expected an error for invalid JSON")
 	}

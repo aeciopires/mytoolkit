@@ -27,17 +27,20 @@ func metricsMiddleware(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
 		}
 
 		metrics.MCPRequestsTotal.WithLabelValues(method, status).Inc()
-		metrics.MCPRequestDuration.WithLabelValues(method).Observe(duration)
+		metrics.Observe(ctx, metrics.MCPRequestDuration.WithLabelValues(method), duration)
 
 		switch method {
-		case "initialize":
+		// A session starts with the legacy "initialize" handshake or, from
+		// protocol 2026-07-28 (SEP-2575, go-sdk >= v1.8), the stateless
+		// "server/discover" request that replaces it — count both.
+		case "initialize", "server/discover":
 			if err == nil {
 				metrics.MCPSessionsTotal.Inc()
 			}
 		case "tools/call":
 			tool := toolName(req)
 			metrics.MCPToolCallsTotal.WithLabelValues(tool, status).Inc()
-			metrics.MCPToolCallDuration.WithLabelValues(tool).Observe(duration)
+			metrics.Observe(ctx, metrics.MCPToolCallDuration.WithLabelValues(tool), duration)
 		}
 
 		return result, err

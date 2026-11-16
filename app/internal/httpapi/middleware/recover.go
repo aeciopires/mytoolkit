@@ -7,6 +7,7 @@ import (
 
 	"github.com/aeciopires/mytoolkit/internal/apperr"
 	"github.com/aeciopires/mytoolkit/internal/response"
+	"github.com/aeciopires/mytoolkit/internal/telemetry"
 )
 
 // Recover converts a panic in a downstream handler into a structured 500
@@ -15,7 +16,11 @@ func Recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				log.Error().Interface("panic", rec).Str("path", r.URL.Path).Msg("panic recovered")
+				ev := log.Error()
+				if traceID, spanID, ok := telemetry.IDs(r.Context()); ok {
+					ev = ev.Str("trace_id", traceID).Str("span_id", spanID)
+				}
+				ev.Interface("panic", rec).Str("path", r.URL.Path).Msg("panic recovered")
 				response.WriteError(w, apperr.New(http.StatusInternalServerError, "INTERNAL", "internal server error"))
 			}
 		}()

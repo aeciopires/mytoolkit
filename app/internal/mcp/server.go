@@ -29,7 +29,7 @@ func NewServer(version string) *sdkmcp.Server {
 		Title:   "MyToolkit",
 		Version: version,
 	}, nil)
-	server.AddReceivingMiddleware(metricsMiddleware)
+	server.AddReceivingMiddleware(tracingMiddleware, metricsMiddleware)
 	for _, add := range toolAdders {
 		add(server)
 	}

@@ -10,4 +10,6 @@ data:
   MYTOOLKIT_MCP_TRANSPORT: "http"
   MYTOOLKIT_MCP_PORT: {{ .Values.mcp.port | quote }}
   MYTOOLKIT_LOG_LEVEL: {{ .Values.env.logLevel | quote }}
+  MYTOOLKIT_SHUTDOWN_DELAY: {{ .Values.env.shutdownDelay | quote }}
+  {{- with include "mytoolkit.tracingEnv" (dict "root" . "service" "mytoolkit-mcp") | trim }}{{ . | nindent 2 }}{{ end }}
 {{- end }}

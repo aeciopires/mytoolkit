@@ -19,8 +19,7 @@ func toolErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	var appErr *apperr.Error
-	if errors.As(err, &appErr) {
+	if appErr, ok := errors.AsType[*apperr.Error](err); ok {
 		return fmt.Errorf("%s: %s", appErr.Code, appErr.Message)
 	}
 	return err

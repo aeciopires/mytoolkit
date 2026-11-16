@@ -105,8 +105,7 @@ func parseValue(dec *json.Decoder, key string) (Node, error) {
 // offset otherwise (truncated input, trailing-data checks).
 func positionedError(input []byte, dec *json.Decoder, err error) string {
 	offset := dec.InputOffset()
-	var syn *json.SyntaxError
-	if errors.As(err, &syn) {
+	if syn, ok := errors.AsType[*json.SyntaxError](err); ok {
 		offset = syn.Offset
 	}
 	line, col := lineCol(input, offset)

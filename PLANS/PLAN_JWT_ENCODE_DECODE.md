@@ -164,3 +164,16 @@ Shared `tool="jwt"` label; no custom metric. Optionally add a `mode` dimension i
 ## New dependencies
 
 `github.com/golang-jwt/jwt/v5` (already a dependency; this revision uses more of its surface — `Parse{RSA,EC,Ed}{Private,Public}KeyFromPEM`, `SigningMethodRS*`/`PS*`/`ES*`/`EdDSA` — not a new module).
+
+## Revision: offline key generation, JWKS, and custom claims (v1.2.0)
+
+Requested: generate keys and a JWKS, sign JWTs offline with custom claims (string or list of strings), and decode/verify those tokens — all with `golang-jwt/jwt/v5`.
+
+- **Key generation** (`GenerateKey`, `keys.go`): HS* → random secret sized to the hash (RFC 7518 §3.2) + `oct` JWK, deliberately **no** JWKS; RS*/PS* → RSA 2048/3072/4096; ES* → the curve RFC 7518 mandates for the algorithm; EdDSA → Ed25519. Output: PKCS#8/PKIX PEM, private + public JWK, and a one-key JWKS. Default `kid` = RFC 7638 thumbprint.
+- **JWKS** (`BuildJWKS`): from one or more PEM blocks (public/private/certificate), a JWK, or a JWKS; always public-only output; `alg` inferred from key type unless given.
+- **Signing** (`Encode(claims, EncodeOptions)`): accepts PEM or a private JWK; sets the `kid` header (explicit, or the JWK's). `ClaimsSpec`/`BuildClaims` add `iss`/`sub`/`aud`/`exp`/`nbf`/`iat`/`jti`; `ParseClaimPairs` adds custom claims — `name=value` (string), repeated name or `name[]=value` (list of strings). `exp`/`nbf`/`iat` are refused as custom claims (must be NumericDate).
+- **Verification** (`Decode`): `key` now also accepts a JWK or JWKS (selected by the token's `kid`, filtered by `alg`/key type, several candidates tried via `jwt.VerificationKeySet`) and private/certificate PEM; adds `verify_error`; validates `exp`/`nbf`/`iat`; `jwt.WithValidMethods` excludes `none`.
+- **Offline by design**: no JWKS URL fetching — that would make a "testing" tool a server-side request forgery vector, and the requirement was explicitly offline.
+- **Surfaces**: CLI `jwt keygen` / `jwt jwks` subcommands + claim flags on `--encode`; REST `options.mode` ∈ `decode|encode|keygen|jwks`; MCP `jwt_keygen`/`jwt_jwks` + extended `jwt_encode`; web page with four modes.
+
+Bugs fixed in the same pass (each with a regression test, see `docs/testing/jwt.md`): HS* signing with an empty secret; HS* verification against an empty key when only `key` was supplied (forgeable `valid: true`); EC curve mismatch reported as `500 SIGNING_FAILED`; invalid claims JSON reported as `INVALID_TOKEN`; duplicate claim names silently accepted; unknown REST `mode` silently treated as decode.

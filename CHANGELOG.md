@@ -1,13 +1,17 @@
 <!-- TOC -->
 
 - [Changelog](#changelog)
-  - [\[1.1.0\] - 2026-07-20](#110---2026-07-20)
+  - [\[1.2.0\] - 2026-11-16](#120---2026-11-16)
     - [Added](#added)
     - [Changed](#changed)
-  - [\[1.0.0\] - 2026-07-10](#100---2026-07-10)
+    - [Fixed](#fixed)
+  - [\[1.1.0\] - 2026-07-20](#110---2026-07-20)
     - [Added](#added-1)
     - [Changed](#changed-1)
-    - [Fixed](#fixed)
+  - [\[1.0.0\] - 2026-07-10](#100---2026-07-10)
+    - [Added](#added-2)
+    - [Changed](#changed-2)
+    - [Fixed](#fixed-1)
 
 <!-- TOC -->
 
@@ -17,6 +21,53 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.2.0] - 2026-11-16
+
+### Added
+
+- JWT: offline key generation, JWKS, and custom claims (all via `golang-jwt/jwt/v5`, nothing ever fetched from the network).
+  - **Key generation**: `mytoolkit jwt keygen` / REST `mode: keygen` / MCP `jwt_keygen` — HMAC secret (+ `oct` JWK), or RSA (2048/3072/4096), EC (P-256/384/521 matching ES256/384/512) and Ed25519 key pairs as PKCS#8/PKIX PEM + private/public JWK + a ready-to-publish JWKS. Default `kid` is the RFC 7638 thumbprint. `--private-out` writes the private key with mode `0600`.
+  - **JWKS**: `mytoolkit jwt jwks` / REST `mode: jwks` / MCP `jwt_jwks` — converts PEM keys/certificates (multiple blocks → multi-key set), a JWK or a JWKS into a public-only JWKS.
+  - **Signing with claims**: `--iss`, `--sub`, `--aud` (repeatable), `--exp`/`--nbf` (durations, incl. `7d`), `--iat`, `--jti`, `--kid`, and `--claim name=value` custom claims — repeated names or `name[]=value` produce a list of strings. Same options on REST (`issuer`, `subject`, `audience`, `expires_in`, `not_before`, `issued_at`, `jwt_id`, `kid`, `claims`) and MCP `jwt_encode` (`custom_claims`). Private keys may also be given as a private JWK.
+  - **Verification**: `key` now also accepts a JWK, a JWKS (key picked by the token's `kid`), a private key or a certificate; `exp`/`nbf`/`iat` are validated; a new `verify_error` field explains `valid: false`.
+  - Web page: four modes (Decode/Verify, Encode, Generate Key, Build JWKS) with registered-claim fields and a one-claim-per-line custom claims box; verified with Playwright through the full keygen → sign → JWKS → verify flow.
+- MCP: `jwt_keygen` and `jwt_jwks` (18 MCP tools in total).
+- `make helm-check-version` (a prerequisite of every `helm-*` target) and a Helm-major-version check in `make check-tools`.
+- Graceful shutdown on SIGINT/SIGTERM for `serve` and `mcp --transport http` (20s drain, below Kubernetes' default 30s grace period).
+- **Observability stack — metrics, logs and traces** (`docker-compose.yml`, `observability/`): Grafana 13.3.1, Prometheus 3.16.0, Loki 3.7.10, Tempo 3.1.1, Jaeger 2.23.0 and Grafana Alloy 1.22.0, fully provisioned and cross-linked (Prometheus exemplars → Tempo, Loki `trace_id` → Tempo, Tempo/Jaeger spans → Loki logs, Tempo → Prometheus span metrics and service map). Alloy ships every Compose container's JSON logs to Loki (level normalized, `level`/`tool` labels, `trace_id`/`span_id` as structured metadata) and fans OTLP traces out to Tempo and Jaeger; Tempo's metrics generator remote-writes RED metrics and the service graph to Prometheus. Every component logs JSON too. Prometheus also scrapes the stack itself.
+- **OpenTelemetry tracing** (`internal/telemetry`), opt-in via the standard `OTEL_*` variables (OTLP/HTTP): REST server spans named after the chi route plus a `tool <slug>` child span; one MCP span per JSON-RPC request (`mcp tools/call <tool>`), honoring `traceparent` from HTTP headers or MCP `params._meta`. Latency histograms record `trace_id` **exemplars** (`/metrics` now negotiates OpenMetrics).
+- Grafana dashboards **"MyToolkit — Logs"** (log volume by level/service, errors/warnings, requests, p95 latency and HTTP status derived from the JSON request logs, live log panels filterable by service/level/tool/regex) and **"MyToolkit — Traces"** (RED metrics per operation from span metrics with exemplars, service map, recent/error/slow traces and tool spans via TraceQL, trace view by ID in Tempo and in Jaeger). The metrics dashboard gained exemplars on every latency panel, links to the other dashboards/Explore apps/Jaeger UI, and an "Observability Stack" targets-up row. All three verified by running every panel query through Grafana's API against real traffic and by Playwright screenshots.
+- **JSON logging everywhere** (`internal/logging`): every `serve`/`mcp` stderr line is one JSON object with `level`, `service`, `version`, `time` (RFC 3339 nanoseconds) and `message`; request lines add `trace_id`/`span_id`; stdlib `log` (incl. `http.Server.ErrorLog`), `log/slog` and OTel SDK errors are routed into it; a fatal server error (e.g. port in use) is a JSON `error` line instead of plain text. MCP logs one line per JSON-RPC request.
+- **Health checks for the MCP server**: `mytoolkit mcp --transport http` now serves `GET /healthz` and `GET /readyz` (shared `internal/health` package with the web server). `/readyz` returns `503 {"status":"shutting_down"}` once graceful shutdown starts, and the new `MYTOOLKIT_SHUTDOWN_DELAY` keeps serving that long with readiness failing before closing the listener. `mytoolkit healthcheck` gained `--mcp` and `--path`.
+- Helm chart **1.1.0**: MCP probes switched from `tcpSocket` to `httpGet` `/healthz`/`/readyz`; `helm test` checks both endpoints on the web and (when enabled) MCP Services; new `tracing.*` values (`enabled`, `endpoint`, `sampler`, `samplerArg`, `resourceAttributes`) rendered as `OTEL_*` variables; `env.shutdownDelay` (default `5s`) and `terminationGracePeriodSeconds`; `checksum/config` pod annotation so ConfigMap changes roll the pods. Verified on a throwaway kind cluster (`helm install` with MCP + tracing, `helm test`, probes, graceful shutdown).
+- `make compose-up` passes the repo `VERSION` into the image build (Compose `VERSION` build arg) and starts the whole stack; `make compose-down` also stops the `mcp` profile.
+
+### Changed
+
+- **Helm 4 is now required; Helm 3 is no longer supported.** `mise.toml` pins Helm 4.3.2; README updated.
+- Go 1.26.5 → **1.27.4** (`app/go.mod`, Dockerfile builder `golang:1.27.4-alpine`, `mise.toml`). Runtime image `gcr.io/distroless/static-debian12` → `static-debian13`.
+- Dependencies refreshed (`go get -u ./... && go mod tidy`): notably `modelcontextprotocol/go-sdk` v1.6.1 → v1.8.0, `go-chi/chi/v5` v5.3.1 → v5.5.0, `prometheus/client_golang` v1.24.0 → v1.25.0, `spf13/pflag` v1.0.10 → v1.1.0, `go-openapi/spec` v0.22.9 → v1.0.1, `golang.org/x/{net,sys,tools,…}` to latest.
+- `mise.toml`: kubectl 1.37.2, kind 0.33.0, golangci-lint 2.15.0 (2.12.2 can't lint a Go 1.27 module).
+- `docker-compose.yml`: images pinned — `prom/prometheus:v3.16.0`, and `grafana/grafana-oss` (no longer published) replaced by `grafana/grafana:13.3.1`.
+- `docker-compose.yml`: Prometheus/Grafana now use named volumes, Prometheus runs with `--web.enable-remote-write-receiver --enable-feature=exemplar-storage`, and both app services export traces to Alloy and have health checks.
+- New Go dependencies: `go.opentelemetry.io/otel` (+ `sdk`, `exporters/otlp/otlptrace/otlptracehttp`) v1.47.0 and `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp` v0.72.0.
+- `mytoolkit_mcp_sessions_total` also counts `server/discover`: go-sdk v1.8 clients use the stateless 2026-07-28 protocol (SEP-2575) and never send `initialize`.
+- Go code modernized following JetBrains' [`use-modern-go`](https://github.com/JetBrains/go-modern-guidelines) guidelines and `go fix`: `errors.AsType`, `slices.Contains`/`SortFunc`, `cmp.Or`, `atomic.Int64`, `t.Context()`, `new(value)`, `range` over ints, and `encoding/json/v2` for new JSON parsing (existing wire output intentionally unchanged).
+- JWT REST: an unknown `options.mode` now returns `INVALID_OPTION` instead of silently decoding.
+- JWT registry description updated to reflect the new capabilities.
+
+### Fixed
+
+- **Security — JWT `HS*` signing accepted an empty secret**, producing tokens anyone could forge. Now `400 MISSING_SECRET`.
+- **Security — JWT verification of an `HS*` token with only `key` supplied used an empty HMAC key**, so a token forged with an empty secret reported `valid: true`. It now reports `valid: false`.
+- **Security — duplicate claim names** (`{"sub":"alice","sub":"admin"}`) were silently accepted (last wins); now rejected as `INVALID_CLAIMS`.
+- JWT: EC key on the wrong curve for `ES*` returned `500 SIGNING_FAILED`; now `400 INVALID_KEY` with the expected curve. Invalid claims JSON returned code `INVALID_TOKEN`; now `INVALID_CLAIMS`. A token string with surrounding whitespace/newline is now trimmed before decoding.
+- **Data race** in `metrics.Ranking()`: it iterated the usage map without the mutex while `RecordUsage` inserted into it — a fatal `concurrent map iteration and map write` under load. Regression test runs under `-race`.
+- HTTP servers had no timeouts (Slowloris-prone) and REST tool requests had no body size limit (memory exhaustion); now `ReadHeaderTimeout`/`ReadTimeout`/`IdleTimeout` are set and bodies are capped at 10 MiB.
+- CLI errors printed the full usage text and the error message twice; now a single `Error: …` line on stderr.
+- `mytoolkit jwt --encode` with only claim flags no longer blocks waiting for stdin when stdin is an interactive terminal.
+- **MCP server crash**: a handler panic (e.g. reading `_meta` from the typed-nil params of `notifications/initialized`) unwound through the SDK's unrecovered goroutine and killed the whole `mytoolkit mcp` process; panics are now recovered into JSON-RPC errors (and the nil-params case no longer panics).
 
 ## [1.1.0] - 2026-07-20
 

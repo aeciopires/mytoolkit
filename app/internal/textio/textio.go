@@ -23,3 +23,12 @@ func Write(path string, data []byte) error {
 	}
 	return os.WriteFile(path, data, 0o644)
 }
+
+// WritePrivate is Write for secret material (private keys, HMAC secrets):
+// a file is created with mode 0600 so it isn't world-readable.
+func WritePrivate(path string, data []byte) error {
+	if path == "" || path == "-" {
+		return Write(path, data)
+	}
+	return os.WriteFile(path, data, 0o600)
+}

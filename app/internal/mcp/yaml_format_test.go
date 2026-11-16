@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleYAMLFormat(t *testing.T) {
-	_, out, err := handleYAMLFormat(context.TODO(), nil, yamlFormatIn{Input: "a: 1\nb: 2\n"})
+	_, out, err := handleYAMLFormat(t.Context(), nil, yamlFormatIn{Input: "a: 1\nb: 2\n"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +15,7 @@ func TestHandleYAMLFormat(t *testing.T) {
 }
 
 func TestHandleYAMLFormatInvalidStyle(t *testing.T) {
-	_, _, err := handleYAMLFormat(context.TODO(), nil, yamlFormatIn{Input: "a: 1\n", Style: "bogus"})
+	_, _, err := handleYAMLFormat(t.Context(), nil, yamlFormatIn{Input: "a: 1\n", Style: "bogus"})
 	if err == nil {
 		t.Fatal("expected an error for an invalid style")
 	}

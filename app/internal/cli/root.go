@@ -17,6 +17,11 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runServe(cmd, args)
 	},
+	// A failing tool (bad input, invalid key, …) is a runtime error, not a
+	// usage error: don't dump the full flag help after it. Errors are
+	// printed exactly once, by main, instead of by both cobra and main.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func init() {

@@ -7,16 +7,25 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
+
+	"github.com/aeciopires/mytoolkit/internal/telemetry"
 )
 
 // Logging logs one structured JSON line per completed request, tagged with
-// a request_id and the matched tool slug.
+// a request_id, the matched tool slug and, when tracing is enabled, the
+// trace_id/span_id of the request's span.
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		slug := chi.URLParam(r, "slug")
 
-		reqLogger := log.With().Str("request_id", chimw.GetReqID(r.Context())).Str("tool", slug).Logger()
+		logCtx := log.With().Str("request_id", chimw.GetReqID(r.Context())).Str("tool", slug)
+		// trace_id/span_id let Grafana jump from a Loki log line to its
+		// trace in Tempo/Jaeger (and back) — present only when tracing is on.
+		if traceID, spanID, ok := telemetry.IDs(r.Context()); ok {
+			logCtx = logCtx.Str("trace_id", traceID).Str("span_id", spanID)
+		}
+		reqLogger := logCtx.Logger()
 		ctx := reqLogger.WithContext(r.Context())
 
 		sw := newStatusWriter(w)

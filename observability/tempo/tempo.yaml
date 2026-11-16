@@ -1,0 +1,52 @@
+# Grafana Tempo 3.x, single-binary mode with local storage — sized for a
+# laptop/docker-compose demo, not production. Spans arrive over OTLP from
+# Grafana Alloy (observability/alloy/config.alloy), which fans the same
+# spans out to Jaeger too.
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+  # JSON logs like every other container (parsed by Alloy -> Loki).
+  log_format: json
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+# The metrics generator derives RED metrics (traces_spanmetrics_*) and the
+# service graph (traces_service_graph_*) from spans and remote-writes them
+# to Prometheus (started with --web.enable-remote-write-receiver), feeding
+# the "MyToolkit — Traces" dashboard and Grafana's service map.
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ["span-metrics", "service-graphs"]
+      generate_native_histograms: classic
+
+usage_report:
+  reporting_enabled: false

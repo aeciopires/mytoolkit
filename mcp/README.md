@@ -8,6 +8,7 @@
   - [Usage with an MCP client](#usage-with-an-mcp-client)
   - [Examples](#examples)
   - [Observability](#observability)
+    - [Traces, logs and health checks](#traces-logs-and-health-checks)
   - [Workflow](#workflow)
   - [Debugging](#debugging)
 
@@ -43,7 +44,7 @@ docker run --rm -i mytoolkit:latest mcp
 
 ## Available tools
 
-The MCP server registers **16 tools** (MyToolkit's 15 tools, plus JWT split into two: `jwt_encode`/`jwt_decode`, since a clean, independently-documented input shape per operation is a better fit for how MCP clients pick a tool than replicating the REST endpoint's single `mode` field). MCP tool names use underscores where the REST/CLI slug uses a hyphen only for `jwt_encode`/`jwt_decode` — every other tool keeps its familiar hyphenated slug as the MCP tool name.
+The MCP server registers **18 tools** (MyToolkit's 15 tools, with JWT split into four: `jwt_decode`/`jwt_encode`/`jwt_keygen`/`jwt_jwks`, since a clean, independently-documented input shape per operation is a better fit for how MCP clients pick a tool than replicating the REST endpoint's single `mode` field). MCP tool names use underscores where the REST/CLI slug uses a hyphen only for the `jwt_*` tools — every other tool keeps its familiar hyphenated slug as the MCP tool name.
 
 | MCP tool | Maps to | Description |
 |---|---|---|
@@ -54,8 +55,10 @@ The MCP server registers **16 tools** (MyToolkit's 15 tools, plus JWT split into
 | `json-to-yaml` | [JSON to YAML Converter](../docs/api/json-to-yaml.md) | Convert a JSON document to YAML. |
 | `json-toon` | [JSON to TOON Converter](../docs/api/json-toon.md) | Convert JSON into TOON to shrink LLM token usage. |
 | `json-tree` | [JSON Tree Viewer](../docs/api/json-tree.md) | Parse JSON into a tree structure (key, type, value, children). |
-| `jwt_decode` | [JWT Encode/Decode](../docs/api/jwt.md) | Decode a JWT's header and claims, optionally verifying its signature. |
-| `jwt_encode` | [JWT Encode/Decode](../docs/api/jwt.md) | Sign a JSON claims object into a JWT. |
+| `jwt_decode` | [JWT Encode/Decode](../docs/api/jwt.md) | Decode a JWT's header and claims, optionally verifying its signature and `exp`/`nbf`/`iat` with a secret (HMAC) or a public key, JWK or JWKS (selected by `kid`). |
+| `jwt_encode` | [JWT Encode/Decode](../docs/api/jwt.md) | Sign a JWT offline from a claims JSON object plus registered claims (`issuer`, `subject`, `audience`, `expires_in`, `not_before`, `issued_at`, `jwt_id`) and `custom_claims` (`name=value` → string; repeated name or `name[]=value` → list of strings). |
+| `jwt_jwks` | [JWT Encode/Decode](../docs/api/jwt.md) | Convert PEM keys/certificates or a JWK into a publishable JWKS (public keys only). |
+| `jwt_keygen` | [JWT Encode/Decode](../docs/api/jwt.md) | Generate key material offline: an HMAC secret, or an RSA/EC/Ed25519 key pair as PEM + JWK + JWKS. |
 | `k8s-validate` | [Kubernetes YAML Validator](../docs/api/k8s-validate.md) | Validate that a YAML document has the fields the Kubernetes API requires. |
 | `password-gen` | [Password Generator](../docs/api/password-gen.md) | Generate a cryptographically random password. |
 | `qrcode` | [QR Code Generator](../docs/api/qrcode.md) | Generate a QR code PNG image from text or a URL. |
@@ -90,7 +93,7 @@ New to MCP? Every client needs to know how to *start* (or connect to) `mytoolkit
 - **Client command** — some clients (Claude Code) ship a CLI subcommand that writes the config file for you. Fastest, least error-prone; use it if your client has one.
 - **Manual config file edit** — every MCP client reads its server list from a JSON file. Editing it yourself works everywhere, including clients with no add command (Claude Desktop, Cursor), and is the only option once you need something the command doesn't expose.
 
-Both paths produce the same result: the client starts (or connects to) `mytoolkit mcp` and sees the 16 tools.
+Both paths produce the same result: the client starts (or connects to) `mytoolkit mcp` and sees the 18 tools.
 
 Before either path, build the binary once and note its **absolute path** — config files don't reliably resolve `~` or a bare `mytoolkit`, unless it's already on the client's `PATH`:
 
@@ -158,11 +161,11 @@ or see [`examples/claude_desktop_config_http.json`](examples/claude_desktop_conf
 
 Captured from a real `mytoolkit mcp` (stdio) process, driven by a small MCP client, against the actual built binary — not hand-typed.
 
-`tools/list` (16 tools, one line each — abbreviated here to two):
+`tools/list` (18 tools, one line each — abbreviated here to two):
 
 ```
 - base64: Encode or decode text using Base64 (standard or URL-safe variant, with optional padding).
-- jwt_decode: Decode a JWT's header and claims, optionally verifying its signature with a secret (HMAC) or public key (RSA/ECDSA/EdDSA).
+- jwt_decode: Decode a JWT's header and claims, optionally verifying its signature and exp/nbf/iat with a secret (HMAC) or a public key, JWK or JWKS (RSA/ECDSA/EdDSA).
 ```
 
 `tools/call base64` (`{"input": "hello mytoolkit mcp"}`):
@@ -222,7 +225,7 @@ Every JSON-RPC method call (both transports) is recorded by `internal/mcp`'s `me
 | `mytoolkit_mcp_request_duration_seconds` | Histogram | `method` | Duration of every JSON-RPC method call. |
 | `mytoolkit_mcp_tool_calls_total` | Counter | `tool`, `status` | `tools/call` requests specifically, broken down by MCP tool name. `status` is `success` or `error` (a tool result with `isError: true` counts as `error`, matching what the MCP client actually sees — not just Go-level protocol errors). |
 | `mytoolkit_mcp_tool_call_duration_seconds` | Histogram | `tool` | Duration of `tools/call` requests, per tool. |
-| `mytoolkit_mcp_sessions_total` | Counter | — | Sessions established (successful `initialize` requests). |
+| `mytoolkit_mcp_sessions_total` | Counter | — | Sessions established: successful `initialize` requests (protocol ≤ 2025-11-25) or `server/discover` requests (stateless protocol 2026-07-28, SEP-2575). |
 
 **Only reachable when `--transport http`.** The `stdio` transport has no listening port — Prometheus's pull model has nothing to scrape from a local child process talking JSON-RPC over stdin/stdout, so metrics aren't exposed there (this is inherent to stdio, not a gap). When running `--transport http`, `/metrics` is served on the same port as the MCP endpoint itself (`internal/cli/mcp.go` mounts both on one `http.ServeMux`: `/` for JSON-RPC, `/metrics` for Prometheus), so no extra port or flag is needed.
 
@@ -237,7 +240,28 @@ $ curl -s 'http://localhost:9090/api/v1/query?query=mytoolkit_mcp_tool_calls_tot
 {"metric": {"tool": "json-format", "status": "success", ...}, "value": [..., "1"]}
 ```
 
-**Wiring**: `observability/prometheus.yml`'s `mytoolkit-mcp` job scrapes the Compose service (`mytoolkit-mcp:8081`, only up when `--profile mcp` is running); `helm/mytoolkit/templates/mcp-deployment.yaml` carries the same `prometheus.io/scrape`/`port`/`path` pod annotations as the main Deployment, plus an optional `mcp-servicemonitor.yaml` (`mcp.enabled && metrics.serviceMonitor.enabled`) for Prometheus Operator setups. The Grafana dashboard (`observability/mytoolkit-dashboard.json`, provisioned automatically by `docker-compose.yml`) has a dedicated **"MCP Server"** row — tool call rate/errors/latency percentiles by tool, request rate by JSON-RPC method, session count, and a ranking table — verified rendering real data from this same stack via Grafana's own datasource-proxy API, not just "the JSON looks right."
+**Wiring**: `observability/prometheus.yml`'s `mytoolkit-mcp` job scrapes the Compose service (`mytoolkit-mcp:8081`, only up when `--profile mcp` is running); `helm/mytoolkit/templates/mcp-deployment.yaml` carries the same `prometheus.io/scrape`/`port`/`path` pod annotations as the main Deployment, plus an optional `mcp-servicemonitor.yaml` (`mcp.enabled && metrics.serviceMonitor.enabled`) for Prometheus Operator setups. The Grafana "MyToolkit — Application Metrics" dashboard (`observability/mytoolkit-dashboard.json`, provisioned automatically by `docker-compose.yml`, alongside the Logs and Traces dashboards) has a dedicated **"MCP Server"** row — tool call rate/errors/latency percentiles by tool, request rate by JSON-RPC method, session count, and a ranking table — verified rendering real data from this same stack via Grafana's own datasource-proxy API, not just "the JSON looks right."
+
+### Traces, logs and health checks
+
+- **Traces** (OpenTelemetry, opt-in): with `OTEL_EXPORTER_OTLP_ENDPOINT` set (the Compose service points it at Grafana Alloy), every JSON-RPC request becomes one span — `mcp tools/call <tool>` (attributes `mcp.method.name`, `gen_ai.tool.name`, `mytoolkit.tool`; error status for protocol errors and `isError` tool results), `mcp initialize`, `mcp tools/list`, ... Each request starts its own trace unless the client sends a W3C trace context: `params._meta.traceparent` (works over stdio too) or, over HTTP, a `traceparent` header. The `tools/call` duration histograms carry the `trace_id` as a Prometheus exemplar. Default `service.name`: `mytoolkit-mcp`. See [../docs/environment-variables.md](../docs/environment-variables.md#opentelemetry-tracing).
+- **Logs**: one JSON line per JSON-RPC request on stderr (`info` for `tools/call`, `warn` for errors, `debug` for the rest), carrying the trace context when there is one. Real output of a `tools/call` sent with `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`:
+
+  ```json
+  {"level":"info","service":"mytoolkit-mcp","version":"1.2.0","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7","tool":"base64","method":"tools/call","status":"success","duration_ms":0.168,"time":"2026-11-16T06:57:31.583668197-03:00","message":"mcp request completed"}
+  ```
+
+  (With tracing export off, the IDs are the caller's — the context is still propagated.) Over stdio this goes to stderr only, never stdout, so the JSON-RPC stream stays clean. The "MyToolkit — Logs" Grafana dashboard filters these by `service="mytoolkit-mcp"` and `tool`.
+- **Health checks** (`--transport http` only): `GET /healthz` → `{"status":"ok"}` and `GET /readyz` → `{"status":"ready"}` (`503 {"status":"shutting_down"}` once graceful shutdown starts), on the MCP port:
+
+  ```
+  $ curl -s localhost:8081/healthz
+  {"status":"ok"}
+  $ curl -s localhost:8081/readyz
+  {"status":"ready"}
+  ```
+
+  The Helm chart's MCP Deployment probes these with `httpGet` (the MCP endpoint itself only answers JSON-RPC POSTs), Docker Compose runs `mytoolkit healthcheck --mcp`, and `helm test` checks both. A panic inside a tool handler is recovered and returned as a JSON-RPC error instead of killing the server.
 
 ## Workflow
 

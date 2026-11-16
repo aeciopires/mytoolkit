@@ -47,7 +47,7 @@ func TestListToolsCoversEveryTool(t *testing.T) {
 
 	want := []string{
 		"base64", "json-format", "yaml-format", "password-gen",
-		"jwt_decode", "jwt_encode", "qrcode", "text-count", "url-encode",
+		"jwt_decode", "jwt_encode", "jwt_keygen", "jwt_jwks", "qrcode", "text-count", "url-encode",
 		"hash-gen", "case-convert", "json-toon", "yaml-to-json",
 		"json-to-yaml", "k8s-validate", "json-tree",
 	}

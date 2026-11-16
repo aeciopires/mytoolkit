@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleCaseConvert(t *testing.T) {
-	_, out, err := handleCaseConvert(context.TODO(), nil, caseConvertIn{Input: "hello world", Mode: "title"})
+	_, out, err := handleCaseConvert(t.Context(), nil, caseConvertIn{Input: "hello world", Mode: "title"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +15,7 @@ func TestHandleCaseConvert(t *testing.T) {
 }
 
 func TestHandleCaseConvertMissingMode(t *testing.T) {
-	_, _, err := handleCaseConvert(context.TODO(), nil, caseConvertIn{Input: "hello"})
+	_, _, err := handleCaseConvert(t.Context(), nil, caseConvertIn{Input: "hello"})
 	if err == nil {
 		t.Fatal("expected an error when mode is missing")
 	}

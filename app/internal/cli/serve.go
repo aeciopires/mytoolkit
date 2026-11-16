@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/aeciopires/mytoolkit/internal/app"
 	"github.com/aeciopires/mytoolkit/internal/config"
 	"github.com/aeciopires/mytoolkit/internal/httpapi"
+	"github.com/aeciopires/mytoolkit/internal/logging"
+	"github.com/aeciopires/mytoolkit/internal/version"
 )
 
 // toolHandlers accumulates REST handlers registered by each feature's init().
@@ -43,18 +44,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 	serveFlags.LogChanged = cmd.Flags().Changed("log-level")
 	cfg := config.Load(serveFlags)
 
-	zerolog.SetGlobalLevel(parseLevel(cfg.LogLevel))
-	log.Logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
+	logging.Setup(os.Stderr, cfg.LogLevel, "mytoolkit", version.Version)
+
+	shutdownTracing, err := setupTracing(cmd.Context(), "mytoolkit")
+	if err != nil {
+		return logFatal(err, "tracing setup failed")
+	}
+	defer shutdownTracing()
 
 	handler := app.New(toolHandlers)
 	log.Info().Str("addr", cfg.Addr()).Msg("starting MyToolkit web server")
-	return http.ListenAndServe(cfg.Addr(), handler)
-}
-
-func parseLevel(level string) zerolog.Level {
-	l, err := zerolog.ParseLevel(level)
-	if err != nil {
-		return zerolog.InfoLevel
+	if err := listenAndServe(cmd.Context(), cfg.Addr(), handler); err != nil {
+		return logFatal(err, "web server failed")
 	}
-	return l
+	return nil
 }

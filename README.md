@@ -10,7 +10,7 @@
     - [CLI mode](#cli-mode)
     - [Docker](#docker)
     - [Kubernetes / Helm](#kubernetes--helm)
-  - [Observability (Prometheus + Grafana)](#observability-prometheus--grafana)
+  - [Observability (metrics, logs and traces)](#observability-metrics-logs-and-traces)
   - [Documentation](#documentation)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [MCP Server](#mcp-server)
@@ -61,7 +61,7 @@ Every page shares the same navigation shell:
 - 📄 **JSON Formatter** – Format and organize JSON documents to improve readability.
 - 📝 **YAML Formatter** – Format YAML files with consistent indentation.
 - 🔐 **Password Generator** – Generate strong, customizable passwords, with confusing/ambiguous character exclusion.
-- 🎫 **JWT Encode/Decode** – Encode and decode JSON Web Tokens (JWT) for inspection and testing.
+- 🎫 **JWT Encode/Decode** – Decode/verify (secret, PEM, JWK or JWKS) and sign JSON Web Tokens offline with registered and custom claims (string or list of strings), plus key generation (HMAC/RSA/EC/Ed25519) and JWKS building.
 - 📱 **QR Code Generator** – Generate QR codes from text, URLs, or unicode content.
 - 📊 **Character, Word & Line Counter** – Count characters, words, and lines in any text.
 - 🌐 **URL Encode/Decode** – Encode and decode URLs according to web standards.
@@ -79,10 +79,10 @@ Every page shares the same navigation shell:
 
 | Tool | Purpose |
 |---|---|
-| [Go](https://go.dev/dl/) >= 1.26.5 | Build, run, and test the application (`app/go.mod` pins `go 1.26.5`). |
+| [Go](https://go.dev/dl/) >= 1.27.4 | Build, run, and test the application (`app/go.mod` pins `go 1.27.4`). |
 | [Git](https://git-scm.com/) | Clone the repository and version control. |
 | [Docker](https://docs.docker.com/get-docker/) (with the Compose plugin, `docker compose`) | Build/run container images and the local Prometheus + Grafana stack. |
-| [Helm](https://helm.sh/) v3 | Lint, template, and install the Kubernetes chart in [`helm/mytoolkit`](helm/mytoolkit). |
+| [Helm](https://helm.sh/) v4 (Helm 3 is not supported) | Lint, template, and install the Kubernetes chart in [`helm/mytoolkit`](helm/mytoolkit). `make check-tools` and every `helm-*` target fail fast on a non-v4 `helm`. |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | Interact with a Kubernetes cluster. |
 | [kind](https://kind.sigs.k8s.io/) | Run a local Kubernetes cluster (`kind-multinodes`) for `make kind-load`/`helm-install`/`helm-test`. |
 | [golangci-lint](https://golangci-lint.run/) | Run `make lint`. |
@@ -124,7 +124,7 @@ Run `make help` for the full, self-documenting list. Most targets `cd` into `app
 | `kind-load` | Load the local Docker image into the `kind-multinodes` cluster. |
 | `helm-install` | `helm upgrade --install` against the kind cluster/namespace. |
 | `helm-uninstall` | `helm uninstall` from the kind cluster/namespace. |
-| `helm-test` | Run `helm test` (hits `/healthz`) against the installed release. |
+| `helm-test` | Run `helm test` (hits `/healthz` and `/readyz` of the web Service, and of the MCP Service when `mcp.enabled`) against the installed release. |
 | `swagger-gen` | Regenerate `app/docs` (Swagger/OpenAPI spec) from `@`-annotations — run after touching any `@Router`/`@Summary`/etc. comment. |
 | `clean` | Remove build artifacts. |
 
@@ -176,29 +176,85 @@ To publish to Docker Hub, run `make docker-push` — it interactively prompts fo
 make helm-lint
 make kind-load             # load the image into the kind-kind-multinodes cluster
 make helm-install           # helm upgrade --install against that cluster
-make helm-test               # helm test (hits /healthz)
+make helm-test               # helm test (hits /healthz and /readyz)
 ```
 
-See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrape annotations, autoscaling/ingress toggles).
+See [helm/mytoolkit](helm/mytoolkit) for chart details (probes, Prometheus scrape annotations, tracing, autoscaling/ingress toggles).
 
-## Observability (Prometheus + Grafana)
+**Health checks**: both long-running servers expose `GET /healthz` (liveness, always `200 {"status":"ok"}`) and `GET /readyz` (readiness, `200 {"status":"ready"}`, switching to `503 {"status":"shutting_down"}` as soon as graceful shutdown starts so Kubernetes stops routing new requests while in-flight ones drain) — the web server on its port (8080) and `mytoolkit mcp --transport http` on the MCP port (8081). The chart's liveness/readiness probes are `httpGet` on these paths for both Deployments, `helm test` calls them, and Docker Compose uses `mytoolkit healthcheck` (`--mcp` for the MCP port, `--path /readyz` for readiness), since the distroless image has no shell or curl.
 
-`docker compose up --build` also starts Prometheus (scraping `mytoolkit`'s `/metrics` every 15s, per [`observability/prometheus.yml`](observability/prometheus.yml)) and Grafana, pre-provisioned with a Prometheus data source and the **MyToolkit — Application Metrics** dashboard ([`observability/mytoolkit-dashboard.json`](observability/mytoolkit-dashboard.json)) — no manual setup needed. The dashboard includes a dedicated **MCP Server** row (tool call rate/errors/latency, requests by JSON-RPC method, sessions) fed by the optional `mytoolkit-mcp` Compose service — add it with `docker compose --profile mcp up -d mytoolkit-mcp` (see [MCP Server](#mcp-server) below and [`mcp/README.md`](mcp/README.md#observability)).
+## Observability (metrics, logs and traces)
 
-- Prometheus: <http://localhost:9090>
-- Grafana: <http://localhost:3000> (login `admin` / `admin`, per `GF_SECURITY_ADMIN_PASSWORD` in `docker-compose.yml`; Grafana will prompt to change it on first login — safe to skip for local use)
+`docker compose up -d --build` (or `make compose-up`, which also stamps the `VERSION` into the image) starts MyToolkit together with a complete, pre-provisioned observability stack — no manual setup needed:
 
-The dashboard covers every metric the app exposes: HTTP request rate/error-rate by tool and status, request latency percentiles (overall and per-tool), successful-invocation counts per tool (the same data behind `GET /api/v1/metrics/ranking`), and Go runtime/process health (goroutines, memory, GC pauses, open file descriptors, CPU, network I/O). See `.skills/observability/SKILL.md` for the provisioning layout and how to add a panel for a new metric.
+```mermaid
+flowchart LR
+    app["mytoolkit / mytoolkit-mcp"]
+    alloy["Grafana Alloy"]
+    prom["Prometheus"]
+    loki["Loki"]
+    tempo["Tempo"]
+    jaeger["Jaeger"]
+    grafana["Grafana"]
 
-| HTTP Traffic | Latency |
+    prom -- "scrape /metrics (with trace_id exemplars)" --> app
+    app -- "JSON logs on stderr (Docker)" --> alloy
+    app -- "OTLP/HTTP traces" --> alloy
+    alloy -- logs --> loki
+    alloy -- traces --> tempo
+    alloy -- traces --> jaeger
+    tempo -- "span metrics + service graph (remote write)" --> prom
+    grafana --> prom & loki & tempo & jaeger
+```
+
+| Component | Version | URL | Role |
+|---|---|---|---|
+| [Grafana](https://grafana.com/oss/grafana/) | 13.3.1 | <http://localhost:3000> (`admin`/`admin`) | Dashboards; data sources Prometheus, Loki, Tempo and Jaeger, cross-linked |
+| [Prometheus](https://prometheus.io/) | 3.16.0 | <http://localhost:9090> | Scrapes `/metrics`, stores exemplars, receives Tempo's span metrics |
+| [Loki](https://grafana.com/oss/loki/) | 3.7.10 | API on <http://localhost:3100> | Log storage |
+| [Tempo](https://grafana.com/oss/tempo/) | 3.1.1 | API on <http://localhost:3200> | Trace storage + metrics generator (RED metrics, service graph) |
+| [Jaeger](https://www.jaegertracing.io/) | 2.23.0 | <http://localhost:16686> | Second trace backend and UI (same spans as Tempo) |
+| [Grafana Alloy](https://grafana.com/oss/alloy-opentelemetry-collector/) | 1.22.0 | <http://localhost:12345> | Collector: Docker logs → Loki, OTLP traces (`:4317`/`:4318`) → Tempo + Jaeger |
+
+**How MyToolkit feeds it**
+
+- **Metrics**: Prometheus scrapes `/metrics` (`mytoolkit:8080`, and `mytoolkit-mcp:8081` when the MCP service runs). The latency histograms carry `trace_id` **exemplars**, so a dot on a latency graph opens that request's trace.
+- **Logs**: every container — MyToolkit *and* the stack components — writes **one JSON object per line**. Alloy reads them from Docker, parses the JSON, normalizes `level` (`error|warn|info|debug`), turns `level`/`tool` into Loki labels and keeps `trace_id`/`span_id` as structured metadata. In Grafana a log line links to its trace. Log format details: [docs/environment-variables.md](docs/environment-variables.md#logging).
+- **Traces**: `serve` and `mcp` export OpenTelemetry spans over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (Compose sets it to Alloy; it's off otherwise). Each REST request produces a `POST /api/v1/tools/{slug}` server span with a `tool <slug>` child span; each MCP JSON-RPC request produces an `mcp <method>` span (`mcp tools/call <tool>`). Incoming W3C `traceparent` headers (and MCP `params._meta.traceparent`) are honored. Configuration: [docs/environment-variables.md](docs/environment-variables.md#opentelemetry-tracing).
+
+**Dashboards** (folder *MyToolkit*, linked to each other from their top-right links):
+
+| Dashboard | File | Content |
+|---|---|---|
+| MyToolkit — Application Metrics | [`observability/mytoolkit-dashboard.json`](observability/mytoolkit-dashboard.json) | HTTP traffic and errors, latency percentiles (with exemplars), tool usage ranking, MCP server row, Go runtime/process health, observability-stack targets up |
+| MyToolkit — Logs | [`observability/mytoolkit-logs-dashboard.json`](observability/mytoolkit-logs-dashboard.json) | Log volume by level/service, errors and warnings, requests/p95 latency/HTTP status derived from the JSON request logs, live log panels — filter by service, level, tool and regex |
+| MyToolkit — Traces | [`observability/mytoolkit-traces-dashboard.json`](observability/mytoolkit-traces-dashboard.json) | RED metrics per operation from Tempo span metrics, service map, recent/error/slow traces and tool spans (TraceQL), trace view by ID in Tempo and in Jaeger |
+
+| Application Metrics: HTTP Traffic | Application Metrics: Latency |
 |---|---|
 | ![Grafana dashboard, HTTP Traffic row: total requests, error rate, service up, uptime, request rate by tool and status](images/grafana-dashboard1.png) | ![Grafana dashboard, Latency row: overall and p95 percentiles, average latency by tool](images/grafana-dashboard2.png) |
 
-| Tool Usage + MCP Server | Go Runtime & Process Health |
+| Application Metrics: Tool Usage + MCP Server | Application Metrics: Go Runtime & Process Health |
 |---|---|
 | ![Grafana dashboard, Tool Usage and MCP Server rows: successful invocations by tool, usage ranking, MCP tool calls/sessions](images/grafana-dashboard3.png) | ![Grafana dashboard, Go Runtime & Process Health row: goroutines, memory, CPU, GC pauses, network I/O](images/grafana-dashboard4.png) |
 
-**Note on editing the dashboard while the stack is running**: `observability/mytoolkit-dashboard.json` is bind-mounted as a single file, which some editors/tools replace via write-new-file-then-rename — Docker's bind mount then keeps referencing the old file. If your edits don't show up after Grafana's `updateIntervalSeconds` (30s) or a manual `POST /api/admin/provisioning/dashboards/reload`, run `docker compose restart grafana`.
+| Logs: overview and request metrics from logs | Logs: JSON log lines |
+|---|---|
+| ![Grafana Logs dashboard: log lines, errors, warnings, log volume by level and service, requests and p95 latency by tool](images/grafana-logs-dashboard1.png) | ![Grafana Logs dashboard: errors and warnings and all-logs panels showing JSON lines with trace_id](images/grafana-logs-dashboard2.png) |
+
+| Traces: RED metrics | Traces: service map, TraceQL tables and trace view |
+|---|---|
+| ![Grafana Traces dashboard: span rate, error ratio, p95 latency and per-operation graphs with exemplars](images/grafana-traces-dashboard1.png) | ![Grafana Traces dashboard: service map, recent/error/slow traces tables and a trace waterfall](images/grafana-traces-dashboard2.png) |
+
+The optional MCP service (and its metrics, logs and traces) starts with `docker compose --profile mcp up -d mytoolkit-mcp` (see [MCP Server](#mcp-server) and [`mcp/README.md`](mcp/README.md#observability)).
+
+**Known limitation — Jaeger search in Grafana**: Jaeger 2.23 serves only its `api_v3` query API, while Grafana's Jaeger data source still uses the removed legacy API for *search* (pending [jaeger#7594](https://github.com/jaegertracing/jaeger/issues/7594)). Opening a trace by ID in Grafana works (`jaegerEnableGrpcEndpoint` feature toggle, set in `docker-compose.yml`); search Jaeger traces in the Jaeger UI, or search the same spans in Tempo.
+
+**Note on editing a dashboard while the stack is running**: each dashboard JSON is bind-mounted as a single file, which some editors/tools replace via write-new-file-then-rename — Docker's bind mount then keeps referencing the old file. If your edits don't show up after Grafana's `updateIntervalSeconds` (30s) or a manual `POST /api/admin/provisioning/dashboards/reload`, run `docker compose restart grafana`.
+
+**Kubernetes**: the Helm chart keeps Prometheus scrape annotations / optional `ServiceMonitor`s for metrics, and exports traces when `tracing.enabled=true` + `tracing.endpoint` point at your OTLP collector (see [helm/mytoolkit](helm/mytoolkit)). Logs are JSON on stderr, ready for any cluster log agent (Grafana Alloy, Fluent Bit, Vector, ...).
+
+See [.skills/observability/SKILL.md](.skills/observability/SKILL.md) for the provisioning layout and how to change dashboards.
 
 ## Documentation
 
@@ -230,7 +286,7 @@ If you change a tool's REST request/response shape, update its `@`-annotations (
 
 ## MCP Server
 
-Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) tool, so MCP-aware clients (Claude Desktop, Claude Code, Cursor, and others) can call them directly — `mytoolkit mcp` (stdio, the default) or `mytoolkit mcp --transport http --port 8081` (streamable HTTP), reusing the exact same `internal/tools/<name>` functions as the web UI, REST API, and CLI. When running over HTTP, it also exposes `mytoolkit_mcp_*` Prometheus metrics (tool call rate/errors/latency, requests by method, sessions) at `/metrics`, visualized in the Grafana dashboard's "MCP Server" row (see [Observability](#observability-prometheus--grafana) above). See [mcp/README.md](mcp/README.md) for installation, client configuration examples, metrics, and a Mermaid workflow diagram.
+Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) tool, so MCP-aware clients (Claude Desktop, Claude Code, Cursor, and others) can call them directly — `mytoolkit mcp` (stdio, the default) or `mytoolkit mcp --transport http --port 8081` (streamable HTTP), reusing the exact same `internal/tools/<name>` functions as the web UI, REST API, and CLI. When running over HTTP, it also exposes `mytoolkit_mcp_*` Prometheus metrics (tool call rate/errors/latency, requests by method, sessions) at `/metrics`, visualized in the Grafana dashboard's "MCP Server" row (see [Observability](#observability-metrics-logs-and-traces) above). See [mcp/README.md](mcp/README.md) for installation, client configuration examples, metrics, and a Mermaid workflow diagram.
 
 ## Environment variables
 
@@ -238,9 +294,11 @@ Every tool is also exposed as an [MCP](https://modelcontextprotocol.io) (Model C
 |---|---|---|---|
 | `MYTOOLKIT_HOST` | `--host` | `0.0.0.0` | Interface the HTTP server binds to. Also used by `mytoolkit mcp --transport http`. |
 | `MYTOOLKIT_PORT` | `--port` | `8080` | TCP port the HTTP server listens on. |
-| `MYTOOLKIT_LOG_LEVEL` | `--log-level` | `info` | zerolog level: `debug`, `info`, `warn`, `error`. Also used by `mytoolkit mcp`. |
+| `MYTOOLKIT_LOG_LEVEL` | `--log-level` | `info` | Log level: `debug`, `info`, `warn`, `error`. Also used by `mytoolkit mcp`. Logs are always JSON on stderr. |
 | `MYTOOLKIT_MCP_TRANSPORT` | `--transport` (`mcp`) | `stdio` | `stdio` or `http`. See [mcp/README.md](mcp/README.md). |
 | `MYTOOLKIT_MCP_PORT` | `--port` (`mcp`) | `8081` | TCP port `mytoolkit mcp --transport http` listens on. |
+| `MYTOOLKIT_SHUTDOWN_DELAY` | — | `0` (none) | After SIGINT/SIGTERM, keep serving this long (Go duration, e.g. `5s`) with `/readyz` returning `503` before closing the listener and draining in-flight requests (up to 20s). Lets Kubernetes remove the pod from Service endpoints first; the Helm chart sets `5s`. Applies to `serve` and `mcp --transport http`. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | unset (off) | OTLP/HTTP endpoint; setting it enables OpenTelemetry tracing for `serve`/`mcp`. Other standard `OTEL_*` variables apply too. |
 
 Full details: [docs/environment-variables.md](docs/environment-variables.md). Copy `.env-example` to `.env` for local dev / `docker-compose`.
 
@@ -294,20 +352,21 @@ Every example in `docs/api/<tool>.md` and `docs/cli/<tool>.md` is verified again
 
 | Layer | Technology |
 |---|---|
-| Language & runtime | [Go](https://go.dev/) 1.26.5 |
+| Language & runtime | [Go](https://go.dev/) 1.27.4 |
 | HTTP router | [go-chi/chi](https://github.com/go-chi/chi) v5 |
 | CLI framework | [spf13/cobra](https://github.com/spf13/cobra) + [spf13/pflag](https://github.com/spf13/pflag) |
-| Structured logging | [rs/zerolog](https://github.com/rs/zerolog) (JSON to stderr) |
-| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) |
+| Structured logging | [rs/zerolog](https://github.com/rs/zerolog) (JSON to stderr; stdlib `log`/`slog`/OTel SDK messages routed into the same JSON) |
+| Metrics | [prometheus/client_golang](https://github.com/prometheus/client_golang) (OpenMetrics, trace_id exemplars) |
+| Tracing | [OpenTelemetry Go](https://opentelemetry.io/docs/languages/go/) SDK + `otelhttp`, OTLP/HTTP exporter |
 | API documentation | [swaggo/swag](https://github.com/swaggo/swag) + [swaggo/http-swagger](https://github.com/swaggo/http-swagger) (OpenAPI/Swagger UI, generated from code annotations) |
 | MCP server | [modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk) (stdio + streamable HTTP transports, see [mcp/README.md](mcp/README.md)) |
 | JWT tool | [golang-jwt/jwt](https://github.com/golang-jwt/jwt) v5 |
 | QR Code tool | [skip2/go-qrcode](https://github.com/skip2/go-qrcode) |
 | YAML processing | [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) and [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) |
 | Web frontend | Server-rendered Go `html/template`, embedded vanilla CSS/JS, [Material Design 3](https://m3.material.io/) design tokens |
-| Containerization | Docker multi-stage build onto [`gcr.io/distroless/static-debian12:nonroot`](https://github.com/GoogleContainerTools/distroless), Docker Compose |
-| Orchestration | Kubernetes, [Helm](https://helm.sh/) chart ([`helm/mytoolkit`](helm/mytoolkit)) |
-| Observability stack | [Prometheus](https://prometheus.io/) + [Grafana](https://grafana.com/) (provisioned via `docker-compose.yml`, see [Observability](#observability-prometheus--grafana)) |
+| Containerization | Docker multi-stage build onto [`gcr.io/distroless/static-debian13:nonroot`](https://github.com/GoogleContainerTools/distroless), Docker Compose |
+| Orchestration | Kubernetes, [Helm](https://helm.sh/) 4 chart ([`helm/mytoolkit`](helm/mytoolkit)) |
+| Observability stack | [Prometheus](https://prometheus.io/), [Loki](https://grafana.com/oss/loki/), [Tempo](https://grafana.com/oss/tempo/), [Jaeger](https://www.jaegertracing.io/), [Grafana Alloy](https://grafana.com/oss/alloy-opentelemetry-collector/) and [Grafana](https://grafana.com/) (provisioned via `docker-compose.yml`, see [Observability](#observability-metrics-logs-and-traces)) |
 
 ## Architecture
 
@@ -388,7 +447,7 @@ mytoolkit/
 │   │   ├── registry/        tool metadata
 │   │   ├── cli/              cobra commands (one file per tool)
 │   │   ├── httpapi/          chi router, health, generic REST handler
-│   │   ├── mcp/               MCP server (16 tools, stdio + streamable HTTP)
+│   │   ├── mcp/               MCP server (18 tools, stdio + streamable HTTP)
 │   │   ├── metrics/          Prometheus collectors + usage ranking
 │   │   ├── web/               html/template pages + embedded CSS/JS
 │   │   └── tools/<name>/      pure business logic + tests, one package per tool
@@ -402,7 +461,7 @@ mytoolkit/
 ├── mcp/                     MCP server docs + client config examples (server code lives in app/internal/mcp/)
 ├── helm/mytoolkit/          Helm chart
 ├── images/                  README screenshots
-├── observability/           Prometheus scrape config + Grafana dashboard/provisioning
+├── observability/           Prometheus, Loki, Tempo and Alloy configs + Grafana dashboards (metrics, logs, traces) and provisioning
 ├── PLANS/                   design docs (architecture + one per feature)
 ├── Dockerfile
 ├── docker-compose.yml

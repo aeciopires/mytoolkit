@@ -2,7 +2,10 @@
 // CLI flag > environment variable > built-in default, in one place.
 package config
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 type Config struct {
 	Host     string
@@ -97,4 +100,22 @@ func LoadMCP(f MCPFlags) MCPConfig {
 
 func (c MCPConfig) Addr() string {
 	return c.Host + ":" + c.Port
+}
+
+// EnvShutdownDelay is how long `serve`/`mcp --transport http` keep serving
+// after SIGTERM with /readyz already failing, before closing the listener
+// (a Go duration, e.g. "5s"; default 0). It gives Kubernetes time to see
+// the failing readiness probe / endpoint removal and stop routing new
+// requests to a pod that is about to close its socket. Env-only: it is a
+// deployment concern, not something a CLI user tunes per run.
+const EnvShutdownDelay = "MYTOOLKIT_SHUTDOWN_DELAY"
+
+// ShutdownDelay parses EnvShutdownDelay; unset, invalid or negative
+// values mean no delay.
+func ShutdownDelay() time.Duration {
+	d, err := time.ParseDuration(os.Getenv(EnvShutdownDelay))
+	if err != nil || d < 0 {
+		return 0
+	}
+	return d
 }

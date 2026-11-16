@@ -1,30 +1,30 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/aeciopires/mytoolkit/internal/health"
 )
 
 // healthHandler godoc
 // @Summary Liveness probe
-// @Description Always returns 200 while the process is up. Used by Docker/Kubernetes liveness checks; excluded from request metrics.
+// @Description Returns 200 while the process is up. Used by Docker (`mytoolkit healthcheck`) and the Helm chart's Kubernetes liveness probe; not traced and excluded from request metrics. The streamable-HTTP MCP server (`mytoolkit mcp --transport http`) serves the same endpoint on its own port.
 // @Tags system
 // @Produce json
-// @Success 200 {object} map[string]string "{\"status\": \"ok\"}"
+// @Success 200 {object} health.Status "{\"status\": \"ok\"}"
 // @Router /healthz [get]
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	health.LiveHandler(w, r)
 }
 
 // readyHandler godoc
 // @Summary Readiness probe
-// @Description Always returns 200 once the process has started (no external dependencies to wait on). Used by Kubernetes readiness checks; excluded from request metrics.
+// @Description Returns 200 {"status":"ready"} while the process accepts traffic, and 503 {"status":"shutting_down"} once graceful shutdown has started (SIGINT/SIGTERM), so Kubernetes removes the pod from Service endpoints while in-flight requests drain. Used by the Helm chart's readiness probe; not traced and excluded from request metrics.
 // @Tags system
 // @Produce json
-// @Success 200 {object} map[string]string "{\"status\": \"ready\"}"
+// @Success 200 {object} health.Status "{\"status\": \"ready\"}"
+// @Failure 503 {object} health.Status "{\"status\": \"shutting_down\"}"
 // @Router /readyz [get]
 func readyHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	health.ReadyHandler(w, r)
 }

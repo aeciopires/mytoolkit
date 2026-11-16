@@ -463,7 +463,7 @@ const docTemplate = `{
         },
         "/api/v1/tools/jwt": {
             "post": {
-                "description": "Decode mode (default): parses a token's header/claims without requiring a key, for inspection; supplying \"secret\" (HMAC) or \"key\" (PEM, other algorithms) additionally attempts verification and sets \"valid\" in the response. Encode mode (\"options.mode\":\"encode\"): signs \"input\" (a JSON object of claims) into a new token using \"options.algorithm\" (default HS256) and \"options.secret\" (HMAC) or \"options.key\" (PEM private key, all other algorithms).",
+                "description": "All modes run offline (no key, token or JWKS is fetched over the network).\nmode=decode (default): parses \"input\" (a token) without requiring a key; supplying \"secret\" (HMAC) or \"key\" (PEM public key/certificate, JWK, or JWKS — matched by the token's kid) additionally verifies the signature and exp/nbf/iat, setting \"valid\" (and \"verify_error\" on failure).\nmode=encode: signs \"input\" (optional JSON claims object) plus the registered-claim options (issuer, subject, audience, expires_in, not_before, issued_at, jwt_id) and \"claims\" (custom name=value pairs — array, or a newline-separated string; a repeated name or name[]=value yields a list of strings) using \"algorithm\" (default HS256) with \"secret\" (HMAC) or \"key\" (PEM or private JWK); \"kid\" sets the header.\nmode=keygen: generates a secret (HS*) or key pair (RS*/PS* with \"bits\", ES*, EdDSA) as PEM, private/public JWK and JWKS.\nmode=jwks: converts \"input\" (PEM keys/certificates, JWK or JWKS) into a JWKS of public keys.",
                 "consumes": [
                     "application/json"
                 ],
@@ -473,10 +473,10 @@ const docTemplate = `{
                 "tags": [
                     "tools"
                 ],
-                "summary": "Decode or encode a JWT",
+                "summary": "Decode/verify, encode (sign), generate keys, or build a JWKS for JWTs",
                 "parameters": [
                     {
-                        "description": "Token to decode (mode=decode, default) or claims JSON to encode (mode=encode)",
+                        "description": "Token (decode), claims JSON (encode), key material (jwks), or empty (keygen)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -492,13 +492,49 @@ const docTemplate = `{
                                         "algorithm": {
                                             "type": "string"
                                         },
+                                        "audience": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "bits": {
+                                            "type": "integer"
+                                        },
+                                        "claims": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "expires_in": {
+                                            "type": "string"
+                                        },
+                                        "issued_at": {
+                                            "type": "boolean"
+                                        },
+                                        "issuer": {
+                                            "type": "string"
+                                        },
+                                        "jwt_id": {
+                                            "type": "boolean"
+                                        },
                                         "key": {
+                                            "type": "string"
+                                        },
+                                        "kid": {
                                             "type": "string"
                                         },
                                         "mode": {
                                             "type": "string"
                                         },
+                                        "not_before": {
+                                            "type": "string"
+                                        },
                                         "secret": {
+                                            "type": "string"
+                                        },
+                                        "subject": {
                                             "type": "string"
                                         }
                                     }
@@ -515,7 +551,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "e.g. INVALID_TOKEN, UNSUPPORTED_ALGORITHM, INVALID_KEY, EMPTY_CLAIMS",
+                        "description": "e.g. INVALID_TOKEN, INVALID_CLAIMS, UNSUPPORTED_ALGORITHM, INVALID_KEY, MISSING_SECRET, EMPTY_CLAIMS, INVALID_OPTION",
                         "schema": {
                             "$ref": "#/definitions/internal_cli.ToolErrorResponse"
                         }
@@ -900,7 +936,7 @@ const docTemplate = `{
         },
         "/healthz": {
             "get": {
-                "description": "Always returns 200 while the process is up. Used by Docker/Kubernetes liveness checks; excluded from request metrics.",
+                "description": "Returns 200 while the process is up. Used by Docker (` + "`" + `mytoolkit healthcheck` + "`" + `) and the Helm chart's Kubernetes liveness probe; not traced and excluded from request metrics. The streamable-HTTP MCP server (` + "`" + `mytoolkit mcp --transport http` + "`" + `) serves the same endpoint on its own port.",
                 "produces": [
                     "application/json"
                 ],
@@ -912,10 +948,7 @@ const docTemplate = `{
                     "200": {
                         "description": "{\\\"status\\\": \\\"ok\\\"}",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_health.Status"
                         }
                     }
                 }
@@ -923,7 +956,7 @@ const docTemplate = `{
         },
         "/readyz": {
             "get": {
-                "description": "Always returns 200 once the process has started (no external dependencies to wait on). Used by Kubernetes readiness checks; excluded from request metrics.",
+                "description": "Returns 200 {\"status\":\"ready\"} while the process accepts traffic, and 503 {\"status\":\"shutting_down\"} once graceful shutdown has started (SIGINT/SIGTERM), so Kubernetes removes the pod from Service endpoints while in-flight requests drain. Used by the Helm chart's readiness probe; not traced and excluded from request metrics.",
                 "produces": [
                     "application/json"
                 ],
@@ -935,10 +968,13 @@ const docTemplate = `{
                     "200": {
                         "description": "{\\\"status\\\": \\\"ready\\\"}",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_health.Status"
+                        }
+                    },
+                    "503": {
+                        "description": "{\\\"status\\\": \\\"shutting_down\\\"}",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_aeciopires_mytoolkit_internal_health.Status"
                         }
                     }
                 }
@@ -946,6 +982,15 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_aeciopires_mytoolkit_internal_health.Status": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        },
         "github_com_aeciopires_mytoolkit_internal_metrics.RankEntry": {
             "type": "object",
             "properties": {

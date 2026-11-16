@@ -18,12 +18,15 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.mcp.port | quote }}
         prometheus.io/path: "/metrics"
+        # Roll the pods when the ConfigMap changes (e.g. enabling tracing).
+        checksum/config: {{ include (print $.Template.BasePath "/mcp-configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "mytoolkit.mcp.selectorLabels" . | nindent 8 }}
     spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "mytoolkit.mcp.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -49,11 +52,12 @@ spec:
           env:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          # tcpSocket, not httpGet: the streamable-HTTP MCP endpoint expects
-          # a JSON-RPC POST with specific Accept headers, not a bare GET —
-          # a plain socket check is the correct probe here, not a workaround.
+          # The MCP endpoint itself only answers JSON-RPC POSTs, so the MCP
+          # server serves dedicated /healthz and /readyz GET endpoints on the
+          # same port (readiness turns 503 during graceful shutdown).
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
               port: mcp
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
@@ -61,7 +65,8 @@ spec:
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
               port: mcp
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}

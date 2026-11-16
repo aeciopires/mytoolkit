@@ -523,3 +523,8 @@ details[open] > summary > .json-toggle-icon::before { content: "▼"; }
 }
 .site-footer a { color: var(--color-primary); text-decoration: none; font-weight: 600; }
 .site-footer a:hover { text-decoration: underline; }
+
+/* The `hidden` attribute must win over component display rules
+   (.options-row/.panel-col set display:flex), e.g. for jwt.html's
+   per-mode sections. */
+.tool-panel [hidden] { display: none !important; }

@@ -4,6 +4,7 @@
   - [Project](#project)
   - [Repository layout](#repository-layout)
   - [Commands](#commands)
+  - [Go style: `modern-go-guidelines` is mandatory](#go-style-modern-go-guidelines-is-mandatory)
   - [Adding a new tool](#adding-a-new-tool)
   - [MCP Server](#mcp-server)
   - [Web UI shell](#web-ui-shell)
@@ -37,7 +38,10 @@ app/
     cli/                      cobra commands; one file per tool, self-registers via init(); also carries swag @Router annotations per tool handler
     httpapi/                  chi router, health, generic REST handler wrapper, /swagger/* UI route
     mcp/                      MCP server: one file per tool, self-registers via init(), same pattern as cli/
-    metrics/                  Prometheus collectors + usage ranking
+    metrics/                  Prometheus collectors, usage ranking, OpenMetrics /metrics handler + trace_id exemplars
+    telemetry/                OpenTelemetry tracing setup (opt-in via OTEL_* env vars, OTLP/HTTP)
+    logging/                  process-wide JSON logger (zerolog + stdlib log/slog/OTel errors routed into it)
+    health/                   /healthz + /readyz (503 during graceful shutdown), shared by `serve` and `mcp --transport http`
     web/                      html/template pages, embedded CSS/JS
     tools/<name>/             pure business logic, one package per tool + its _test.go
 ```
@@ -57,6 +61,18 @@ go run ./cmd/mytoolkit serve --port 8080
 ```
 
 Makefile (repo root): `make build`, `make test`, `make run`, `make lint`, `make check-tools`, `make docker-build`, `make helm-lint`, `make swagger-gen`, etc. Run `make help` for the full list.
+
+Toolchain: Go 1.27 (`app/go.mod`), and **Helm 4 only** — Helm 3 is not supported. Every `helm-*` Makefile target depends on `helm-check-version`, and `make check-tools` flags a non-v4 `helm`. Pinned tool versions live in `mise.toml`.
+
+## Go style: `modern-go-guidelines` is mandatory
+
+**Always** use the JetBrains `use-modern-go` skill (Claude Code plugin `modern-go-guidelines@goland-claude-marketplace`, source: https://github.com/JetBrains/go-modern-guidelines) whenever you **create, modify, analyze/review, or test** Go code in this repo — new tools, bug fixes, refactors, code reviews, and `_test.go` files alike. If the plugin isn't installed, install it first (`/plugin marketplace add JetBrains/go-modern-guidelines`, then `/plugin install modern-go-guidelines@goland-claude-marketplace`).
+
+1. **Before writing or reviewing**: invoke the skill and run its `list` for the Go version in `app/go.mod` (currently 1.27), and `explain <feature>` for anything unfamiliar. Use only features available in that version.
+2. **While writing**: prefer the modern idioms it lists. On Go 1.27 that means, for example, `errors.AsType`, `cmp.Or`, `min`/`max`, `slices`/`maps` helpers, `strings.Lines`/`strings.SplitSeq`, range-over-int, `sync.WaitGroup.Go`, `atomic.Int64`-style typed atomics, and `encoding/json/v2` for *new* JSON code. Existing wire output stays on v1 so documented output doesn't change.
+3. **In tests**: use `t.Context()` (not `context.Background()`), `b.Loop()` in benchmarks, `range n` loops, and `new(value)` instead of pointer helper functions.
+4. **When analyzing or reviewing**: flag outdated idioms the skill lists, such as `errors.As` with a pre-declared target, manual sort/contains loops, `interface{}`, or `context.Background()` in tests, as findings alongside correctness bugs.
+5. **Before finishing**: run `go fix -diff ./...` from `app/`. It must be empty; apply its modernizers with `go fix ./...` and review the result by hand. Also run `go vet ./...`, `go test -race ./...` and `make lint`.
 
 `make docker-push` interactively prompts for Docker Hub username/password-or-token/repository and pushes a multi-arch image. It requires a human at a terminal (hidden password prompt) and publishes to a real public registry — never invoke it non-interactively or on the user's behalf without explicit, in-the-moment confirmation.
 
@@ -80,12 +96,15 @@ Follow the pattern of an existing simple tool (e.g. `base64` or `case-convert`):
 `app/internal/cli/mcp.go` wires the `mcp` subcommand, supporting two transports selected by `--transport`/`MYTOOLKIT_MCP_TRANSPORT` (`config.LoadMCP`, same flag > env > default precedence as `serve`): `stdio` (default — the standard way local MCP clients like Claude Desktop/Claude Code run a server) and `http` (`mcp.NewStreamableHTTPHandler`, for a shared/remote endpoint, `--port`/`MYTOOLKIT_MCP_PORT`, default `8081`). Logs already go to stderr only (see Conventions) — for `stdio` this is a hard correctness requirement, not just style: any stray stdout write corrupts the JSON-RPC stream.
 
 Two per-tool exceptions worth knowing before touching `app/internal/mcp/`:
+- `jwt` is split into four MCP tools (`jwt_decode`/`jwt_encode`/`jwt_keygen`/`jwt_jwks`), mirroring the REST endpoint's four `options.mode` values.
 - `json-tree`'s `Out` type is `any`, not `jsontree.Node` — `jsontree.Node` is self-referential (`Children []Node`) and the SDK's schema inference (`google/jsonschema-go`) panics on cyclic struct types when building an *output* schema. `any` skips schema generation entirely (documented `AddTool` behavior) while the node is still returned as structured JSON content.
 - `qrcode`'s handler returns `*sdkmcp.CallToolResult` directly with an `ImageContent` block (`Out` is `any`) instead of relying on the SDK's automatic JSON-of-`Out` content — the one binary-output MCP tool, matching the REST endpoint's own `image/png` exception.
 
 Full docs (installation, client config examples, Mermaid workflow diagram): `mcp/README.md`. Tests: `app/internal/mcp/*_test.go` (per-tool `handle<Name>` unit tests) plus `app/internal/mcp/server_test.go` (a real client/server round trip over `mcp.NewInMemoryTransports()`, the MCP-surface equivalent of the REST layer's `httptest`-based handler tests).
 
-**Metrics**: `app/internal/mcp/metrics.go`'s `metricsMiddleware`, registered once via `server.AddReceivingMiddleware` in `NewServer`, records `mytoolkit_mcp_requests_total{method,status}`/`mytoolkit_mcp_request_duration_seconds{method}` for every JSON-RPC method plus `mytoolkit_mcp_tool_calls_total{tool,status}`/`mytoolkit_mcp_tool_call_duration_seconds{tool}` for `tools/call` specifically and `mytoolkit_mcp_sessions_total` on `initialize` — one middleware covers all 16 tools, no per-handler instrumentation. Kept as a metric family separate from `mytoolkit_http_*`/`mytoolkit_tool_usage_total` (distinct client population, see Metrics design in `PLAN_ARCHITECTURE.md`). Only reachable via `GET /metrics` when `--transport http` (mounted on the same port as the MCP endpoint through one `http.ServeMux` in `internal/cli/mcp.go`) — `stdio` has no listening port to scrape. Wired into `observability/prometheus.yml` (job `mytoolkit-mcp`), `helm/mytoolkit/templates/mcp-deployment.yaml`'s Prometheus scrape annotations plus the optional `mcp-servicemonitor.yaml`, and a dedicated "MCP Server" row in `observability/mytoolkit-dashboard.json` — see `.skills/mcp/SKILL.md` and `.skills/observability/SKILL.md`.
+**Tracing/logging**: `app/internal/mcp/tracing.go`'s `tracingMiddleware` (registered *before* `metricsMiddleware`, so the duration histograms get `trace_id` exemplars) opens one span per JSON-RPC request (`mcp tools/call <tool>`), honoring a client trace context from `params._meta.traceparent` or the HTTP `traceparent` header, logs one JSON line per request, and recovers handler panics into JSON-RPC errors (the SDK doesn't, so a panic used to kill the process). The HTTP transport also serves `/healthz` and `/readyz` (`internal/health`), which the Helm chart's probes use.
+
+**Metrics**: `app/internal/mcp/metrics.go`'s `metricsMiddleware`, registered once via `server.AddReceivingMiddleware` in `NewServer`, records `mytoolkit_mcp_requests_total{method,status}`/`mytoolkit_mcp_request_duration_seconds{method}` for every JSON-RPC method plus `mytoolkit_mcp_tool_calls_total{tool,status}`/`mytoolkit_mcp_tool_call_duration_seconds{tool}` for `tools/call` specifically and `mytoolkit_mcp_sessions_total` on `initialize`/`server/discover` — one middleware covers all 18 MCP tools, no per-handler instrumentation. Kept as a metric family separate from `mytoolkit_http_*`/`mytoolkit_tool_usage_total` (distinct client population, see Metrics design in `PLAN_ARCHITECTURE.md`). Only reachable via `GET /metrics` when `--transport http` (mounted on the same port as the MCP endpoint through one `http.ServeMux` in `internal/cli/mcp.go`) — `stdio` has no listening port to scrape. Wired into `observability/prometheus.yml` (job `mytoolkit-mcp`), `helm/mytoolkit/templates/mcp-deployment.yaml`'s Prometheus scrape annotations plus the optional `mcp-servicemonitor.yaml`, and a dedicated "MCP Server" row in `observability/mytoolkit-dashboard.json` — see `.skills/mcp/SKILL.md` and `.skills/observability/SKILL.md`.
 
 ## Web UI shell
 
@@ -107,7 +126,8 @@ The repo-root `VERSION` file is the single source of truth for the application v
 
 - `internal/tools/<name>` packages must never import `net/http`, `cobra`, or any other `internal/` package except `apperr`.
 - Error codes and HTTP status are defined once via `apperr.New(status, code, message)` — never construct ad hoc error strings in handlers.
-- Logs are structured JSON (zerolog) to stderr, always — never to stdout, since CLI tool output uses stdout.
+- Logs are structured JSON to stderr, always — never to stdout, since CLI tool output (and the MCP stdio stream) uses stdout. Set up via `internal/logging.Setup` (one JSON object per line with `level`/`service`/`version`/`time`/`message`, plus `trace_id`/`span_id` on request lines); never print plain text to stderr from `serve`/`mcp` — the Alloy → Loki pipeline and the Logs dashboard parse every line as JSON. Return fatal server errors through `logFatal` so `main` doesn't re-print them as text. One-shot CLI tool commands keep the human-readable `Error: ...`.
+- Tracing (`internal/telemetry`) is opt-in through the standard `OTEL_*` env vars; don't add `MYTOOLKIT_*` duplicates or CLI flags for it. New long-running work should start spans from `telemetry.Tracer()` and record latency histograms with `metrics.Observe(ctx, ...)` (exemplars). See `.skills/observability/SKILL.md` for the MCP-specific gotchas (session-scoped context, typed-nil params).
 - Prefer the generic `handlers.Wrap` / `newTextToolCommand` helpers; only write bespoke REST/CLI wiring when a tool's request/response shape genuinely doesn't fit (documented per-tool in `.skills/<name>/SKILL.md`).
 - Every example in `docs/api|cli/<name>.md` must be copy-paste-verified against the running binary before being committed — don't hand-type expected output (including error messages, which are parser-dependent and easy to get subtly wrong). A prior pass shipped docs with a nonexistent request field, a stray unencoded-newline artifact, a hand-typed JSON format that didn't match `json.MarshalIndent`, and invented error message text — all found later by re-running the documented commands verbatim. Re-running every doc example against the real binary is exactly how those were caught; do this whenever you touch a tool's docs.
 - A tool may ship a client-side JS mirror under `internal/web/static/js/<name>.js` (instead of calling the REST API from its own web page) only when a no-network-call guarantee is an explicit product requirement — the pure `internal/tools/<name>` Go package is still mandatory and backs REST/CLI exactly as normal. Such a tool must: (1) state the dual-implementation trade-off explicitly in its `.skills/<name>/SKILL.md`, (2) keep both implementations tested against one shared fixture table (a Go `_test.go` file plus a documented headless-browser parity check — see `docs/testing/json-toon.md`), and (3) set `ClientSide: true` on its `registry.Tool` entry to opt into the `data-client-side` convention rather than hand-rolling page-specific wiring.

@@ -1,6 +1,13 @@
 global:
   scrape_interval: 15s
 
+# Prometheus also receives remote-written metrics from Grafana Tempo's
+# metrics generator (traces_spanmetrics_*, traces_service_graph_*) — see
+# observability/tempo/tempo.yaml and docker-compose.yml's
+# --web.enable-remote-write-receiver flag. Exemplars (trace_id on the
+# latency histograms) need --enable-feature=exemplar-storage; Prometheus
+# negotiates the OpenMetrics format that carries them automatically.
+
 scrape_configs:
   - job_name: 'mytoolkit'
     static_configs:
@@ -14,3 +21,23 @@ scrape_configs:
   - job_name: 'mytoolkit-mcp'
     static_configs:
       - targets: ['mytoolkit-mcp:8081']
+
+  # Self-monitoring of the observability stack itself.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+  - job_name: 'alloy'
+    static_configs:
+      - targets: ['alloy:12345']
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:8888']
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']

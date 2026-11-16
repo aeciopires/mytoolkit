@@ -9,6 +9,7 @@
   - [Dual mode: web (default) and CLI](#dual-mode-web-default-and-cli)
   - [REST API design](#rest-api-design)
   - [Metrics design](#metrics-design)
+  - [Tracing design](#tracing-design)
   - [Logging](#logging)
   - [Health check design](#health-check-design)
   - [Configuration](#configuration)
@@ -61,11 +62,11 @@ mytoolkit/
 │   ├── httpapi/
 │   │   ├── router.go                # chi router, route table, versioning
 │   │   ├── response.go              # shared JSON envelope + error codes
-│   │   ├── health.go                # /healthz, /readyz
+│   │   ├── health.go                # /healthz, /readyz (swag annotations; logic in internal/health)
 │   │   ├── handlers/
 │   │   │   ├── generic.go           # Wrap[Opts] generic handler adapter, reused by most feature handlers
 │   │   │   └── <tool>_handler.go    # thin per-feature handler; QR/password-gen/jwt opt out of generic.go, see Shared code and configuration reuse
-│   │   └── middleware/{metrics,logging,recover}.go
+│   │   └── middleware/{metrics,logging,recover,tracing}.go
 │   ├── web/
 │   │   ├── handlers.go              # server-rendered page handlers (index + one per tool)
 │   │   ├── templates/               # go:embed - layout.html, index.html, tools/<tool>.html
@@ -246,7 +247,7 @@ Registered in `internal/metrics/metrics.go` via `prometheus/client_golang`:
 - `mytoolkit_tool_usage_total{tool}` — Counter, incremented once per successful tool invocation via the REST/web surface. **Scope note**: usage counting is scoped to the running web server process; CLI invocations are separate process runs and are not aggregated into this counter (documented assumption).
 - Default `promhttp` process/Go collectors (`go_*`, `process_*`) included automatically.
 
-**Exposed at**: `GET /metrics` (Prometheus text format via `promhttp.Handler()`), mounted outside `/api/v1` since it's operational, not a tool endpoint. Health-check and metrics requests themselves are excluded from `mytoolkit_http_requests_total` to avoid noise.
+**Exposed at**: `GET /metrics` (`metrics.Handler()`: Prometheus text format, or OpenMetrics when the scraper negotiates it — the format that carries the `trace_id` exemplars recorded by `metrics.Observe`, see [Tracing design](#tracing-design)), mounted outside `/api/v1` since it's operational, not a tool endpoint. Health-check and metrics requests themselves are excluded from `mytoolkit_http_requests_total` to avoid noise.
 
 **Usage ranking**: Prometheus has no built-in ranking concept, so a derived endpoint is added: `GET /api/v1/metrics/ranking`, backed by a parallel in-memory `sync.Map[string]*atomic.Int64` updated alongside the Prometheus counter, sorted descending:
 
@@ -261,6 +262,15 @@ Registered in `internal/metrics/metrics.go` via `prometheus/client_golang`:
 
 The same data is also derivable via PromQL (`topk(N, mytoolkit_tool_usage_total)`) for users who prefer querying Prometheus/Grafana directly — both routes are documented.
 
+## Tracing design
+
+*Added in v1.2.0.* OpenTelemetry tracing for the two long-running surfaces (`serve`, `mcp`), in `internal/telemetry`:
+
+- **Opt-in, standard configuration only**: tracing turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `..._TRACES_ENDPOINT`) is set; everything else (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_TRACES_SAMPLER[_ARG]`, `OTEL_SDK_DISABLED`) is read by the SDK itself. No `MYTOOLKIT_*` duplicates, no CLI flags — the variables every OTel-aware platform already sets. Exporter: OTLP/HTTP (no gRPC dependency). With no endpoint the global provider stays a no-op; the W3C propagator is always installed so incoming context still flows into logs.
+- **Spans**: REST — `otelhttp` at the router root (server span renamed to the chi route pattern, `http.route` set; scrapes/probes/static assets not traced) plus a `tool <slug>` child span; MCP — one server span per JSON-RPC request from a receiving middleware, parented only on an explicitly propagated context (`params._meta.traceparent` or the HTTP `traceparent` header), never on the SDK's session-scoped context.
+- **Correlation**: request log lines carry `trace_id`/`span_id`; latency histograms carry `trace_id` exemplars. Grafana links metrics → traces → logs and back.
+- **Collection (docker-compose)**: Grafana Alloy receives OTLP and fans out to Grafana Tempo and Jaeger; Tempo's metrics generator remote-writes span metrics and the service graph to Prometheus. Alloy also ships every container's JSON logs to Loki. See `.skills/observability/SKILL.md`.
+
 ## Logging
 
 Structured, JSON-formatted logging via `github.com/rs/zerolog`, replacing the earlier `log/slog` choice — same "no extra framework weight" spirit as the rest of the stack, but zerolog's fluent, strongly-typed field API (`.Str()`, `.Int()`, `.Err()`, …) avoids the "silently broken log entry" risk of variadic key-value APIs, and its zero-allocation JSON encoder keeps the request-logging middleware cheap. The framework-agnostic best practices from [dash0.com's structured logging guide](https://www.dash0.com/guides/logging-in-go-with-slog) are applied here using zerolog instead of `slog`:
@@ -271,6 +281,7 @@ Structured, JSON-formatted logging via `github.com/rs/zerolog`, replacing the ea
 - **Correlation / request ID**: `internal/httpapi/middleware/logging.go` assigns a `request_id` per incoming request (via chi's `middleware.RequestID` or a UUID) and derives a per-request child logger — `logger := log.With().Str("request_id", id).Str("tool", slug).Logger()` — stored in the request's `context.Context` via `logger.WithContext(ctx)`. Downstream code pulls it back out with `zerolog.Ctx(ctx)`, so every log line tied to one HTTP request carries the same `request_id` (the "logger in context" pattern from the guide).
 - **Error logging**: errors are logged with `.Err(err)` (zerolog's dedicated structured error field) plus `.Str("error_code", code)`, reusing the same error codes already defined in [REST API design](#rest-api-design) (`INVALID_JSON`, `UNSUPPORTED_ALGORITHM`, etc.) — never a bare formatted string, so code/message/cause stay structured instead of collapsing into one opaque message field.
 - **Sensitive data**: request/response bodies are never logged wholesale. Fields that must never appear in a log line: JWT `secret`, Password Generator's generated `output`, and raw tool `input`/`output` payloads in general (a pasted input could itself be a real secret, e.g. a production JWT someone is decoding). Log lines only carry call metadata (`tool`, `status`, `duration_ms`, `request_id`) — the practical equivalent of the guide's `LogValuer` redaction pattern, enforced by only ever passing explicitly allow-listed scalar fields into a logging call, never an options/payload struct directly.
+- **One JSON format for everything** (v1.2.0, `internal/logging`): every line `serve`/`mcp` write to stderr is a JSON object with `level`, `service`, `version`, `time` (RFC 3339 with nanoseconds, so Loki orders same-second lines correctly) and `message`. Standard-library `log` (including `http.Server.ErrorLog`), `log/slog` and OpenTelemetry SDK errors are routed into the same logger (with a `logger` field), and fatal server errors are logged as JSON instead of a plain `Error: ...` line, so a log pipeline never meets non-JSON output from the app. Request lines add `trace_id`/`span_id` when tracing is on.
 - **Middleware**: `internal/httpapi/middleware/logging.go` logs one structured line per completed request (`method`, `path`, `tool`, `status`, `duration_ms`, `request_id`) — `info` for 2xx/3xx, `warn`/`error` for 4xx/5xx. This is separate from, but correlated with, the Prometheus metrics recorded by `middleware/metrics.go` for the same request (see [Metrics design](#metrics-design)). `/healthz`, `/readyz`, and `/metrics` requests are logged at `debug` only, mirroring their exclusion from `mytoolkit_http_requests_total`.
 
 ## Health check design
@@ -278,9 +289,9 @@ Structured, JSON-formatted logging via `github.com/rs/zerolog`, replacing the ea
 The app is stateless (no DB, no external dependency at MVP), so a single check would suffice, but Kubernetes/Helm conventions benefit from the liveness/readiness split, so both are provided:
 
 - `GET /healthz` — liveness. Returns `200 {"status":"ok"}`.
-- `GET /readyz` — readiness. Returns `200 {"status":"ready"}` (reserved for future use if an external dependency is added later).
+- `GET /readyz` — readiness. Returns `200 {"status":"ready"}`, and `503 {"status":"shutting_down"}` from the moment graceful shutdown starts (v1.2.0). With `MYTOOLKIT_SHUTDOWN_DELAY` (the Helm chart sets `5s`) the server keeps serving that long with readiness failing before it closes the listener, so Kubernetes removes the pod from Service endpoints before connections are refused; then in-flight requests drain for up to 20s.
 
-Both live outside `/api/v1` and are excluded from request-count metrics.
+Both live outside `/api/v1`, are excluded from request-count metrics and are not traced. Since v1.2.0 they are implemented once in `internal/health` and served by both the web server and `mcp --transport http` (whose JSON-RPC endpoint can't serve as a probe), so the Helm chart probes both Deployments with `httpGet`. `mytoolkit healthcheck [--mcp] [--path /readyz]` is the Docker/Compose equivalent for the distroless image.
 
 ## Configuration
 
@@ -367,7 +378,7 @@ Adopts a Material Design 3 (M3)–inspired visual language, matching the referen
 
 **Dockerfile** (multistage):
 1. `builder`: `golang:<latest-stable>` (or `-alpine`), `CGO_ENABLED=0 go build` producing a static binary (embedded templates/static assets, no runtime asset copy needed).
-2. Final stage: `gcr.io/distroless/static-debian12` nonroot variant, `COPY --from=builder`, `USER nonroot`, `ENTRYPOINT ["/mytoolkit"]`, default `CMD ["serve"]`.
+2. Final stage: `gcr.io/distroless/static-debian13` nonroot variant, `COPY --from=builder`, `USER nonroot`, `ENTRYPOINT ["/mytoolkit"]`, default `CMD ["serve"]`.
 3. `EXPOSE 8080`.
 
 **docker-compose.yml**: single `mytoolkit` service, built from the local Dockerfile, port `8080:8080`, environment variables loaded via `env_file: .env` (the user's local copy of `.env-example`) — see [Configuration](#configuration) for the full variable table.

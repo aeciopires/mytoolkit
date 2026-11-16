@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/aeciopires/mytoolkit/internal/apperr"
@@ -23,7 +22,7 @@ type ToolHandlers map[string]http.HandlerFunc
 func Register(r chi.Router, handlers ToolHandlers) {
 	r.Get("/healthz", healthHandler)
 	r.Get("/readyz", readyHandler)
-	r.Handle("/metrics", promhttp.Handler())
+	r.Handle("/metrics", metrics.Handler())
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1", func(api chi.Router) {
@@ -32,10 +31,25 @@ func Register(r chi.Router, handlers ToolHandlers) {
 
 		api.Route("/tools/{slug}", func(tr chi.Router) {
 			tr.Use(chimw.RequestID)
+			tr.Use(mw.ToolSpan)
 			tr.Use(mw.Logging)
 			tr.Use(mw.Metrics)
+			tr.Use(limitBody)
 			tr.Post("/", dispatchTool(handlers))
 		})
+	})
+}
+
+// MaxRequestBodyBytes caps a tool request body. Without it any client
+// could stream an arbitrarily large body into json.Decoder and exhaust
+// memory; 10 MiB is far above any realistic tool input (a pasted
+// manifest, JSON document, or key).
+const MaxRequestBodyBytes = 10 << 20
+
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodyBytes)
+		next.ServeHTTP(w, r)
 	})
 }
 

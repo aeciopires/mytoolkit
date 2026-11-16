@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandleHashGenDefaultAlgorithm(t *testing.T) {
-	_, out, err := handleHashGen(context.TODO(), nil, hashGenIn{Input: "hello"})
+	_, out, err := handleHashGen(t.Context(), nil, hashGenIn{Input: "hello"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -17,7 +16,7 @@ func TestHandleHashGenDefaultAlgorithm(t *testing.T) {
 }
 
 func TestHandleHashGenUnsupportedAlgorithm(t *testing.T) {
-	_, _, err := handleHashGen(context.TODO(), nil, hashGenIn{Input: "hello", Algorithm: "bogus"})
+	_, _, err := handleHashGen(t.Context(), nil, hashGenIn{Input: "hello", Algorithm: "bogus"})
 	if err == nil {
 		t.Fatal("expected an error for an unsupported algorithm")
 	}

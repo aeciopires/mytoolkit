@@ -3,7 +3,9 @@
 package metrics
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -70,7 +72,7 @@ func init() {
 
 var (
 	usageMu     sync.Mutex
-	usageCounts = map[string]*int64{}
+	usageCounts = map[string]*atomic.Int64{}
 )
 
 // RecordUsage increments the in-memory usage counter for tool, used to
@@ -79,12 +81,11 @@ func RecordUsage(tool string) {
 	usageMu.Lock()
 	c, ok := usageCounts[tool]
 	if !ok {
-		var n int64
-		c = &n
+		c = new(atomic.Int64)
 		usageCounts[tool] = c
 	}
 	usageMu.Unlock()
-	atomic.AddInt64(c, 1)
+	c.Add(1)
 	ToolUsageTotal.WithLabelValues(tool).Inc()
 }
 
@@ -94,17 +95,20 @@ type RankEntry struct {
 	Rank  int    `json:"rank"`
 }
 
-// Ranking returns tools sorted by usage count, descending.
+// Ranking returns tools sorted by usage count, descending (ties broken by
+// tool name). The map is read under usageMu: RecordUsage may insert a new
+// tool concurrently, and an unsynchronized map iteration racing an insert
+// is a fatal runtime error, not just a stale read.
 func Ranking() []RankEntry {
+	usageMu.Lock()
 	entries := make([]RankEntry, 0, len(usageCounts))
 	for tool, c := range usageCounts {
-		entries = append(entries, RankEntry{Tool: tool, Count: atomic.LoadInt64(c)})
+		entries = append(entries, RankEntry{Tool: tool, Count: c.Load()})
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Count != entries[j].Count {
-			return entries[i].Count > entries[j].Count
-		}
-		return entries[i].Tool < entries[j].Tool
+	usageMu.Unlock()
+
+	slices.SortFunc(entries, func(a, b RankEntry) int {
+		return cmp.Or(cmp.Compare(b.Count, a.Count), strings.Compare(a.Tool, b.Tool))
 	})
 	for i := range entries {
 		entries[i].Rank = i + 1

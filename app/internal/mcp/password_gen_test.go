@@ -1,12 +1,11 @@
 package mcp
 
 import (
-	"context"
 	"testing"
 )
 
 func TestHandlePasswordGen(t *testing.T) {
-	_, out, err := handlePasswordGen(context.TODO(), nil, passwordGenIn{Length: 20, Lowercase: true, Numbers: true})
+	_, out, err := handlePasswordGen(t.Context(), nil, passwordGenIn{Length: 20, Lowercase: true, Numbers: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +15,7 @@ func TestHandlePasswordGen(t *testing.T) {
 }
 
 func TestHandlePasswordGenNoCharsetSelected(t *testing.T) {
-	_, _, err := handlePasswordGen(context.TODO(), nil, passwordGenIn{Length: 10})
+	_, _, err := handlePasswordGen(t.Context(), nil, passwordGenIn{Length: 10})
 	if err == nil {
 		t.Fatal("expected an error when no character class is enabled")
 	}

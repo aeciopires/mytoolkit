@@ -8,3 +8,5 @@ data:
   MYTOOLKIT_HOST: "0.0.0.0"
   MYTOOLKIT_PORT: {{ .Values.service.port | quote }}
   MYTOOLKIT_LOG_LEVEL: {{ .Values.env.logLevel | quote }}
+  MYTOOLKIT_SHUTDOWN_DELAY: {{ .Values.env.shutdownDelay | quote }}
+  {{- with include "mytoolkit.tracingEnv" (dict "root" . "service" "mytoolkit") | trim }}{{ . | nindent 2 }}{{ end }}

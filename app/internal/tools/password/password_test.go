@@ -76,7 +76,7 @@ func TestGenerateProducesDifferentOutputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	different := false
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		b, err := Generate(opts)
 		if err != nil {
 			t.Fatal(err)

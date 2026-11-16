@@ -1,0 +1,163 @@
+// Grafana Alloy: the single collection agent of the observability stack.
+//
+//   logs   : Docker container stdout/stderr (every container, MyToolkit
+//            and the stack itself, logs one JSON object per line)
+//            -> parse JSON, normalize level -> Loki
+//   traces : OTLP (gRPC :4317 / HTTP :4318) from MyToolkit -> batch ->
+//            Grafana Tempo AND Jaeger (same spans in both backends)
+//
+// Alloy's own logs, JSON like everything else.
+logging {
+  level  = "info"
+  format = "json"
+}
+
+// Metrics are not collected here: Prometheus scrapes /metrics directly
+// (observability/prometheus.yml). UI: http://localhost:12345
+
+// ---------------------------------------------------------------- logs --
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Keep only this Compose project's containers and turn Docker metadata
+// into low-cardinality Loki labels.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = sys.env("COMPOSE_PROJECT")
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.containers.output
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.process.mytoolkit.receiver]
+}
+
+loki.process "mytoolkit" {
+  // Every container in the stack logs one JSON object per line:
+  //   MyToolkit (zerolog): {"level":"info","service":"mytoolkit","tool":"base64",
+  //                         "trace_id":"...","span_id":"...","time":"...","message":"..."}
+  //   Prometheus (slog):   {"time":"...","level":"INFO","msg":"..."}
+  //   Loki/Tempo/Alloy:    {"level":"info","ts":"...","msg":"..."}
+  //   Grafana:             {"level":"info","t":"...","logger":"...","msg":"..."}
+  //   Jaeger (zap):        {"level":"info","ts":1.7e9,"msg":"..."}
+  // so a single json stage extracts the common fields for all of them.
+  stage.json {
+    expressions = {
+      level    = "level",
+      tool     = "tool",
+      trace_id = "trace_id",
+      span_id  = "span_id",
+      time     = "time",
+    }
+  }
+
+  // Fallback for the few lines that aren't JSON despite the JSON log
+  // settings: Tempo's embedded Prometheus remote-write agent always logs
+  // logfmt ("level=INFO ..."), and Jaeger prints one plain-text line at
+  // startup. A JSON "level" (extracted above) wins over this.
+  stage.regex {
+    expression = `(?:^|\s)level=(?P<logfmt_level>[A-Za-z]+)`
+  }
+
+  // Normalize level spellings ("INFO", "warning", "eror", "dbug") to
+  // error|warn|info|debug|fatal, the values the Logs dashboard filters on.
+  stage.template {
+    source   = "level"
+    template = `{{ $l := ToLower (or .Value .logfmt_level "") }}{{ if or (eq $l "warning") (eq $l "warn") }}warn{{ else if or (eq $l "eror") (eq $l "err") (eq $l "error") }}error{{ else if or (eq $l "dbug") (eq $l "debug") (eq $l "trace") }}debug{{ else if or (eq $l "fatal") (eq $l "panic") (eq $l "crit") }}fatal{{ else if $l }}{{ $l }}{{ end }}`
+  }
+
+  // level and tool are small, bounded sets -> labels.
+  stage.labels {
+    values = {
+      level = "",
+      tool  = "",
+    }
+  }
+
+  // trace/span IDs are unbounded -> structured metadata, not labels.
+  stage.structured_metadata {
+    values = {
+      trace_id = "",
+      span_id  = "",
+    }
+  }
+
+  // Use the log's own RFC 3339 "time" (MyToolkit, Prometheus) when
+  // present; other lines keep the Docker-reported timestamp.
+  stage.timestamp {
+    source            = "time"
+    format            = "RFC3339Nano"
+    action_on_failure = "skip"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// -------------------------------------------------------------- traces --
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [
+      otelcol.exporter.otlp.tempo.input,
+      otelcol.exporter.otlp.jaeger.input,
+    ]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+otelcol.exporter.otlp "jaeger" {
+  client {
+    endpoint = "jaeger:4317"
+    tls {
+      insecure = true
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "id": null,
   "uid": "mytoolkit-overview",
   "title": "MyToolkit — Application Metrics",
-  "description": "All metrics exposed by the MyToolkit binary at /metrics: HTTP traffic, request latency, per-tool usage, MCP server activity, and Go runtime/process health. Data source: the 'mytoolkit' and 'mytoolkit-mcp' Prometheus scrape jobs (see observability/prometheus.yml).",
+  "description": "All metrics exposed by the MyToolkit binary at /metrics: HTTP traffic, request latency, per-tool usage, MCP server activity, and Go runtime/process health. Latency panels show trace_id exemplars (dots) that open the trace in Tempo. Data source: the 'mytoolkit' and 'mytoolkit-mcp' Prometheus scrape jobs (see observability/prometheus.yml). Logs and traces: the 'MyToolkit — Logs' and 'MyToolkit — Traces' dashboards (top-right links).",
   "tags": ["mytoolkit"],
   "timezone": "browser",
   "editable": true,
@@ -11,6 +11,12 @@
   "version": 1,
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
+  "links": [
+    { "title": "MyToolkit dashboards", "type": "dashboards", "tags": ["mytoolkit"], "asDropdown": false, "includeVars": false, "keepTime": true, "targetBlank": false, "icon": "external link" },
+    { "title": "Explore traces (Tempo)", "type": "link", "icon": "bolt", "keepTime": true, "targetBlank": true, "url": "/a/grafana-exploretraces-app/explore" },
+    { "title": "Explore logs (Loki)", "type": "link", "icon": "doc", "keepTime": true, "targetBlank": true, "url": "/a/grafana-lokiexplore-app/explore" },
+    { "title": "Jaeger UI", "type": "link", "icon": "external link", "targetBlank": true, "url": "http://localhost:16686/search?service=mytoolkit" }
+  ],
   "panels": [
     { "id": 100, "type": "row", "title": "HTTP Traffic", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "panels": [] },
 
@@ -103,9 +109,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A", "exemplar": true },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B", "exemplar": true },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C", "exemplar": true }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
@@ -115,7 +121,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le, tool))", "legendFormat": "{{tool}}", "refId": "A" }
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_http_request_duration_seconds_bucket[5m])) by (le, tool))", "legendFormat": "{{tool}}", "refId": "A", "exemplar": true }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
@@ -247,9 +253,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 71 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A", "exemplar": true },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B", "exemplar": true },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C", "exemplar": true }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
@@ -259,7 +265,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 71 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le, tool))", "legendFormat": "{{tool}}", "refId": "A" }
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(mytoolkit_mcp_tool_call_duration_seconds_bucket[5m])) by (le, tool))", "legendFormat": "{{tool}}", "refId": "A", "exemplar": true }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
@@ -364,6 +370,20 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "name" }
+    },
+
+    { "id": 900, "type": "row", "title": "Observability Stack", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 108 }, "panels": [] },
+
+    {
+      "id": 901, "type": "stat", "title": "Observability Stack Targets Up",
+      "description": "Prometheus self-scrape of every observability component (jobs prometheus, loki, tempo, alloy, jaeger, grafana in observability/prometheus.yml).",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 109 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "up{job=~\"prometheus|loki|tempo|alloy|jaeger|grafana\"}", "legendFormat": "{{job}}", "instant": true, "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "justifyMode": "center", "orientation": "vertical" }
     }
   ]
 }
