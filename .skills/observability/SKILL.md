@@ -1,42 +1,93 @@
 ---
 name: observability
-description: Modify the Prometheus + Grafana observability stack (observability/ directory, docker-compose.yml's prometheus/grafana services) or the Grafana dashboard JSON. Trigger on "add a metric to the dashboard", "update Grafana dashboard", "add Prometheus scrape config".
+description: Modify the observability stack — metrics (Prometheus), logs (Loki via Grafana Alloy), traces (OpenTelemetry → Alloy → Tempo + Jaeger), the Grafana dashboards/data sources under observability/, the docker-compose.yml services, or the app-side instrumentation (internal/telemetry, internal/logging, internal/metrics, tracing middlewares). Trigger on "add a metric to the dashboard", "update Grafana dashboard", "add Prometheus scrape config", "add a span/attribute", "change log format", "Loki/Tempo/Jaeger/Alloy config".
 ---
 
 # Observability stack
 
-`docker-compose.yml`'s `prometheus` and `grafana` services, plus everything under `observability/`:
+Three signals, one Compose stack, three dashboards:
 
 ```
+mytoolkit ──/metrics scrape (OpenMetrics + trace_id exemplars)──────────► Prometheus ─┐
+    │  JSON logs on stderr ─► Docker ─► Alloy (parse JSON) ─► Loki ──────────────────┤
+    └─ OTLP/HTTP spans ─────────────► Alloy ─┬─► Tempo ─(span metrics, remote write)─►├─► Grafana
+                                             └─► Jaeger ──────────────────────────────┘
+```
+
+## Files
+
+```
+docker-compose.yml                                 mytoolkit, mytoolkit-mcp (profile "mcp"), alloy, loki, tempo, jaeger, prometheus, grafana
 observability/
-  prometheus.yml                                  scrape config: job "mytoolkit" (mytoolkit:8080) and job "mytoolkit-mcp" (mytoolkit-mcp:8081, only up when the optional docker-compose "mcp" profile is running), 15s interval
-  mytoolkit-dashboard.json                         the dashboard itself — deliberately at the top level, not nested, per the request that asked for it "in the observability directory"
-  grafana/provisioning/datasources/datasource.yml  auto-provisions a Prometheus data source, fixed uid: "prometheus"
-  grafana/provisioning/dashboards/dashboard.yml    tells Grafana to load *.json dashboards from /var/lib/grafana/dashboards
+  prometheus.yml                                   scrape jobs: mytoolkit, mytoolkit-mcp, + self-monitoring (prometheus, loki, tempo, alloy, jaeger, grafana)
+  alloy/config.alloy                               Docker log discovery -> JSON parse -> level normalize -> Loki; OTLP receiver -> batch -> Tempo + Jaeger
+  loki/loki.yaml                                   single-binary, filesystem, tsdb v13, structured metadata on, 7d retention
+  tempo/tempo.yaml                                 single-binary, local storage, metrics generator (span-metrics, service-graphs) -> Prometheus remote write
+  mytoolkit-dashboard.json                         "MyToolkit — Application Metrics" (uid mytoolkit-overview) — hand-formatted, edit textually
+  mytoolkit-logs-dashboard.json                    "MyToolkit — Logs" (uid mytoolkit-logs)
+  mytoolkit-traces-dashboard.json                  "MyToolkit — Traces" (uid mytoolkit-traces)
+  grafana/provisioning/datasources/datasource.yml  Prometheus/Loki/Tempo/Jaeger with fixed uids and cross-links
+  grafana/provisioning/dashboards/dashboard.yml    loads *.json from /var/lib/grafana/dashboards (folder "MyToolkit")
 ```
 
-## Every panel's `datasource.uid` must be `"prometheus"`
+The dashboards stay at the top level of `observability/` (the original request asked for the dashboard "in the observability directory"); each is bind-mounted individually in `docker-compose.yml` — add a mount line when adding a dashboard.
 
-This has to match `datasource.yml`'s `uid: prometheus` exactly, or panels show "datasource not found" on a fresh (no manual setup) `docker compose up`. Don't switch to a Grafana template variable (`${DS_PROMETHEUS}`) — that pattern is for dashboards a human imports through the UI and picks a data source for; this one is provisioned automatically and must work with zero clicks.
+## App-side instrumentation
 
-## Single-file bind mount gotcha
+| Signal | Code | Notes |
+|---|---|---|
+| Metrics | `internal/metrics` | `metrics.Handler()` serves `/metrics` with **OpenMetrics enabled** (the only format carrying exemplars; `promhttp.Handler()` doesn't). Record histograms with `metrics.Observe(ctx, obs, v)` so a sampled request attaches a `trace_id` exemplar. |
+| Traces | `internal/telemetry`, `internal/httpapi/middleware/tracing.go`, `internal/mcp/tracing.go`, `internal/cli/tracing.go` | Opt-in via the standard `OTEL_*` env vars (`OTEL_EXPORTER_OTLP_ENDPOINT` turns it on; OTLP/HTTP only). REST: `mw.Tracing` (otelhttp, root of the chi router, span renamed to `METHOD /route/{pattern}` + `http.route`; `/metrics`, probes and `/static/` are skipped) and `mw.ToolSpan` (`tool <slug>` child, error status only for 5xx). MCP: `tracingMiddleware` (`mcp <method>` / `mcp tools/call <tool>`, `gen_ai.tool.name`, `mytoolkit.tool`). |
+| Logs | `internal/logging` | `logging.Setup` makes **every** stderr line JSON: zerolog, stdlib `log` (incl. `http.Server.ErrorLog`), `log/slog`, OTel SDK errors. Common fields `level`, `service`, `version`, `time` (RFC 3339 nano), `message`; request lines add `trace_id`/`span_id`. Fatal `serve`/`mcp` errors are logged as JSON (`logFatal`) and not re-printed as text by `main`. |
 
-`docker-compose.yml` mounts the dashboard as a single file: `./observability/mytoolkit-dashboard.json:/var/lib/grafana/dashboards/mytoolkit-dashboard.json`. Docker single-file bind mounts track the host file's **inode**, not its path — an editor/tool that saves via write-new-file-then-rename (common, for atomicity) leaves the container looking at the old, now-unlinked inode. Verified directly: editing the file and waiting past `updateIntervalSeconds` (30s) and even forcing `POST /api/admin/provisioning/dashboards/reload` did **not** pick up a change; only `docker compose restart grafana` did (that recreates the mount). Whenever you edit `mytoolkit-dashboard.json` with the stack running, tell whoever's testing it to restart the `grafana` container, or the "verification" will silently be checking stale content.
+Gotchas that each cost a debugging session (all regression-tested):
 
-## Grounding queries in real metric names
+- **MCP spans must not inherit `ctx`'s span.** The go-sdk runs method handlers on a *session-scoped* context, so inheriting it put every call of a session into one giant trace. `tracingMiddleware` starts a new root unless the client propagated a parent: `params._meta.traceparent` first, then the HTTP `traceparent` header (`req.GetExtra().Header`). There is deliberately no `otelhttp` wrapper on the MCP HTTP handler.
+- **Typed-nil params.** `notifications/initialized` arrives with a typed-nil `*InitializedParams` inside a non-nil `Params` interface; calling `GetMeta()` on it panicked and, since the SDK doesn't recover handler goroutines, **killed the whole MCP server**. `metaOf` checks with reflection, and `callRecovering` turns any handler panic into a JSON-RPC error.
+- **otelhttp renames the span after the handler** using `r.Pattern`/the span-name formatter, overwriting a `SetName` done inside the handler — name spans through `WithSpanNameFormatter` (it's called again after routing). otelhttp does *not* set `http.route`; `mw.Tracing` does.
+- **`slog.SetDefault` hijacks the stdlib logger** (redirects `log` output into the slog handler at INFO). `logging.Setup` calls it *before* `stdlog.SetOutput`.
+- `zerolog.Logger.Write` emits events **without a `level` field**; stdlib lines go through `levelWriter` instead.
 
-Every panel query in `mytoolkit-dashboard.json` was written against the *actual* `/metrics` output of a running binary (`curl localhost:PORT/metrics`), not from memory of what `client_golang`/`promhttp` usually expose — e.g. `go_gc_duration_seconds` only has `quantile` labels `0`, `0.25`, `0.5`, `0.75`, `1` (no `0.99`), which isn't obvious without checking. The custom app metrics are defined in `internal/metrics/metrics.go`, two families:
-- REST/web surface: `mytoolkit_http_requests_total{tool,method,status}` (counter), `mytoolkit_http_request_duration_seconds{tool,method}` (histogram), `mytoolkit_tool_usage_total{tool}` (counter) — same data `GET /api/v1/metrics/ranking` derives from.
-- MCP surface (recorded by `internal/mcp`'s `metricsMiddleware`, `server.AddReceivingMiddleware` — one hook covers every JSON-RPC method and tool, not per-handler instrumentation; see `.skills/mcp/SKILL.md`): `mytoolkit_mcp_requests_total{method,status}`, `mytoolkit_mcp_request_duration_seconds{method}`, `mytoolkit_mcp_tool_calls_total{tool,status}`, `mytoolkit_mcp_tool_call_duration_seconds{tool}` (histogram), `mytoolkit_mcp_sessions_total` (counter, no labels). Kept as a **separate metric family**, not merged into `mytoolkit_http_*`/`mytoolkit_tool_usage_total` — the MCP surface is a distinct client population (see `PLAN_ARCHITECTURE.md`'s usage-ranking scope note) and conflating them would misattribute usage between surfaces. Only reachable when the MCP process is `--transport http` (mounted on the same port as the MCP endpoint via one `http.ServeMux`, path `/metrics`) — `stdio` has no listening port, so Prometheus's pull model has nothing to scrape there; this is inherent to stdio, not a gap to "fix."
+## Data source uids are fixed: `prometheus`, `loki`, `tempo`, `jaeger`
 
-If a new custom metric is added to `internal/metrics`, add a panel for it here and re-verify against real `/metrics` output — don't guess label names.
+Every panel's `datasource.uid` must match `datasource.yml` exactly, or panels show "datasource not found" on a fresh `docker compose up`. Don't switch to `${DS_*}` template variables — those are for dashboards imported by hand through the UI; these are provisioned and must work with zero clicks. `$$` in `datasource.yml` escapes Grafana's provisioning env interpolation (`$${__value.raw}` is stored as `${__value.raw}`).
 
-## Table panels: aggregate away Prometheus's own labels
+Cross-links configured there: Prometheus exemplars (`trace_id`) → Tempo; Loki `trace_id` structured metadata → Tempo (derived field, `matcherType: label`); Tempo/Jaeger → Loki (`tracesToLogsV2`, query `{service="<service.name>"} | trace_id="<id>"` — relies on the Compose service name equalling `OTEL_SERVICE_NAME`); Tempo → Prometheus (`tracesToMetrics`, service map).
 
-An *instant* query with no aggregation (e.g. bare `mytoolkit_tool_usage_total`) returns every label the metric carries, including Prometheus's own `instance`/`job`/`__name__` — as a table panel, that renders extra clutter columns no one wants. Wrap the query in `sum(...) by (the labels you actually want)` (see the "Tool Usage Ranking" panel's `sort_desc(sum(mytoolkit_tool_usage_total) by (tool))` — a real bug found and fixed by screenshotting the rendered dashboard, not by reading the JSON) to strip everything else.
+## Logs pipeline (Alloy → Loki)
+
+- Only containers of this Compose project are shipped (`COMPOSE_PROJECT` env → `discovery.relabel` keep rule). Labels: `service` (Compose service), `container`, `compose_project`, `level`, `tool`. `trace_id`/`span_id` are **structured metadata, never labels** (unbounded cardinality).
+- Every stack component is configured to log JSON too: Prometheus `--log.format=json`, Loki `-log.format=json`, Tempo `server.log_format: json` (Tempo 3 has **no** `-log.format` flag — the container crash-loops with "flag provided but not defined"), Alloy `logging { format = "json" }`, Grafana `GF_LOG_CONSOLE_FORMAT=json`, Jaeger `--set=service.telemetry.logs.encoding=json` (its very first "application version" line is still plain text, printed before the logger exists). Exception: Tempo's embedded Prometheus remote-write agent (metrics generator WAL) always logs logfmt (`level=INFO ...`), whatever `log_format` says — a `stage.regex` fallback extracts `logfmt_level` so those lines still get a level. One `stage.json` parses everything else; `stage.template` normalizes level spellings (`INFO`, `warning`, `eror`, `dbug`, ...) to `error|warn|info|debug|fatal`, which the Logs dashboard's Level variable relies on.
+
+## Traces pipeline
+
+- Alloy fans the same spans out to Tempo and Jaeger, so one trace ID opens in both.
+- Tempo 3.1's config differs from 2.x: e.g. `metrics_generator.traces_storage` and the `local-blocks` processor are rejected ("field ... not found") — check against the release's `example/docker-compose/single-binary/tempo.yaml`. `generate_native_histograms: classic` keeps `traces_spanmetrics_latency_bucket` as classic buckets for `histogram_quantile`.
+- Span-metrics labels (verified from real data): `service`, `span_name`, `span_kind` (`SPAN_KIND_SERVER`/`SPAN_KIND_INTERNAL`), `status_code` (`STATUS_CODE_UNSET`/`STATUS_CODE_ERROR`).
+- **Jaeger 2.23 serves only `api_v3`** (the legacy `/api/services`, `/api/traces` are gone). Grafana's Jaeger plugin uses v3 for health/services/trace-by-ID only with the `jaegerEnableGrpcEndpoint` feature toggle (set in Compose) and still uses the legacy API for **search** and dependencies (plugin source: "TODO: enable routing to gRPC when ready", jaeger#7594). So the Traces dashboard shows Jaeger traces **by ID** only; search lives in the Jaeger UI. Re-check when bumping either version.
+
+## Grounding queries in real data
+
+Every query was written against real output (`curl localhost:8080/metrics`, Loki/Tempo/Prometheus HTTP APIs), not from memory — e.g. `go_gc_duration_seconds` only has `quantile` labels `0`, `0.25`, `0.5`, `0.75`, `1` (no `0.99`). Custom app metrics (`internal/metrics/metrics.go`):
+- REST/web: `mytoolkit_http_requests_total{tool,method,status}`, `mytoolkit_http_request_duration_seconds{tool,method}` (histogram, exemplars), `mytoolkit_tool_usage_total{tool}` — same data as `GET /api/v1/metrics/ranking`.
+- MCP (recorded by `internal/mcp`'s `metricsMiddleware`): `mytoolkit_mcp_requests_total{method,status}`, `mytoolkit_mcp_request_duration_seconds{method}`, `mytoolkit_mcp_tool_calls_total{tool,status}`, `mytoolkit_mcp_tool_call_duration_seconds{tool}`, `mytoolkit_mcp_sessions_total` (counts `initialize` and the stateless protocol's `server/discover`). Kept separate from `mytoolkit_http_*` (distinct client population, see `PLAN_ARCHITECTURE.md`). Only scrapeable with `--transport http`.
+
+Table panels: aggregate away Prometheus's own labels (`sum(...) by (tool)`), otherwise `instance`/`job`/`__name__` columns clutter the table — found by screenshotting, not by reading the JSON.
+
+## Editing dashboards
+
+- `mytoolkit-dashboard.json` is hand-formatted (one-line targets): edit it textually so diffs stay small; re-serializing it with `json.dump` rewrites ~2000 lines.
+- The logs/traces dashboards are plain Grafana JSON (`schemaVersion` 39); edit them directly or in the Grafana UI and export.
+- Single-file bind mounts track the host file's **inode**: an editor that saves via write-new-file-then-rename leaves the container on the old content, and neither `updateIntervalSeconds` nor `POST /api/admin/provisioning/dashboards/reload` picks the change up. Run `docker compose restart grafana`.
 
 ## Verifying changes
 
-Static JSON validity (`python3 -m json.tool`) is necessary but nowhere near sufficient — a syntactically valid dashboard can still reference the wrong datasource uid, an aggregation-free query cluttering a table, or a metric name that doesn't exist. Verify by actually running the stack: `docker compose up -d --build` (add `--profile mcp mytoolkit-mcp` to also bring up the MCP scrape target when testing `mytoolkit_mcp_*` panels), generate some traffic (`curl -X POST localhost:8080/api/v1/tools/<slug> -d '...'` a few times for REST/web panels; for MCP panels, a real `initialize` → `notifications/initialized` → `tools/call` JSON-RPC handshake against `localhost:8081/` — see `mcp/README.md`'s Examples section for the exact `curl` sequence), then confirm the data actually lands in Prometheus (`curl 'localhost:9090/api/v1/query?query=...'`) before checking Grafana — the Grafana API (`curl -u admin:admin localhost:3000/api/...`, HTTP Basic Auth works fine there) can query a panel's exact PromQL expression through the datasource proxy (`/api/datasources/proxy/uid/prometheus/api/v1/query?query=...`) without needing a browser, which is how the MCP panels were confirmed to render real data end-to-end. `docker compose down -v` afterward to reset Grafana's anonymous data volume (its default admin account has a login-attempt lockout after a handful of failures, encountered directly while testing this).
+`python3 -m json.tool` is necessary but nowhere near sufficient. Run the stack (`make compose-up`, plus `docker compose --profile mcp up -d mytoolkit-mcp` for MCP panels), generate REST and MCP traffic (MCP: a real `initialize` → `notifications/initialized` → `tools/call` sequence, see `mcp/README.md`), then:
 
-Plan: `PLANS/PLAN_ARCHITECTURE.md`'s Metrics design section. No dedicated `PLAN_OBSERVABILITY.md` — this is infrastructure/tooling, not a user-facing tool.
+1. Confirm the data landed: Prometheus `/api/v1/query` and `/api/v1/query_exemplars`, Loki `/loki/api/v1/label/<name>/values` and `query_range`, Tempo `/api/search` + `/api/v2/traces/<id>`, Jaeger `/api/v3/services`.
+2. Run **every panel's query through Grafana** (`POST /api/ds/query`, basic auth `admin:admin`) and require data for each — this caught the Jaeger search 404 and a trace-by-ID panel using the wrong `queryType` (`traceId`, not `traceql`). The Tempo `serviceMap` query type is resolved in the browser only (the backend answers "unsupported query type"), so:
+3. Screenshot all three dashboards with Playwright (tall viewport — Grafana scrolls inside its own container, so `full_page` alone misses lower rows) and look at them.
+
+If host ports are taken by another local stack, test with a throwaway override file that remaps `ports: !override [...]` rather than editing `docker-compose.yml`. Finish with `docker compose --profile mcp down -v` (Grafana's admin account locks after a few failed logins; `-v` resets it).
+
+Plan: `PLANS/PLAN_ARCHITECTURE.md` (Metrics, logs and traces design section). No dedicated `PLAN_OBSERVABILITY.md` — this is infrastructure/tooling, not a user-facing tool.
